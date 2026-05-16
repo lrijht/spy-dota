@@ -51,14 +51,17 @@ export default function GamePage() {
       });
 
     // Fetch personal assignment (handles Pusher race condition — event fires before subscription)
-    fetch(`/api/game/my-role?code=${code}&playerId=${id}`)
-      .then(r => r.json())
-      .then(data => {
-        if (!data.error) {
-          setAssigned(data);
-          setWaitingAssign(false);
-        }
-      });
+    function fetchMyRole() {
+      fetch(`/api/game/my-role?code=${code}&playerId=${id}`)
+        .then(r => r.json())
+        .then(data => {
+          if (!data.error) {
+            setAssigned(data);
+            setWaitingAssign(false);
+          }
+        });
+    }
+    fetchMyRole();
 
     const pusher = getPusherClient();
     pusherRef.current = pusher;
@@ -88,6 +91,9 @@ export default function GamePage() {
       setMyVote(null);
       setRevealed(null);
       setShowHint(false);
+      setWaitingAssign(true);
+      setAssigned(null);
+      fetchMyRole();
     });
     lobbyChannel.bind("spy-revealed", (data: RevealData) => {
       setRevealed(data);

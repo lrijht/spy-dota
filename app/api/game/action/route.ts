@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLobby, updateLobby } from "@/lib/store";
 import { pusherServer } from "@/lib/pusher";
+import { getRandomHeroes } from "@/lib/heroes";
+import Groq from "groq-sdk";
+
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 export async function POST(req: NextRequest) {
   const { code, playerId, action, payload } = await req.json();
@@ -8,7 +12,6 @@ export async function POST(req: NextRequest) {
   if (!lobby) return NextResponse.json({ error: "Lobby not found" }, { status: 404 });
 
   if (action === "answered") {
-    // Mark player as having answered this round
     const updatedPlayers = lobby.players.map(p =>
       p.id === playerId ? { ...p, hasAnswered: true } : p
     );
@@ -27,8 +30,6 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "record-answer") {
-    // Record another player's answer (visible only to recorder)
-    // Just acknowledge - clients store answers locally
     return NextResponse.json({ ok: true });
   }
 
@@ -50,8 +51,77 @@ export async function POST(req: NextRequest) {
       await pusherServer.trigger(`lobby-${code}`, "game-finished", {});
       return NextResponse.json({ ok: true, finished: true });
     }
-    const updatedPlayers = lobby.players.map(p => ({ ...p, hasAnswered: false, votes: 0 }));
-    await updateLobby(code, { currentRound: nextRound, votingOpen: false, roundVotes: {}, players: updatedPlayers });
+
+    // Re-assign spy and hero for the new round
+    const activePlayers = lobby.players.filter(p => !p.isKicked);
+    const spyIndex = Math.floor(Math.random() * activePlayers.length);
+    const [sharedHero] = getRandomHeroes(1);
+    const nonSpyCount = activePlayers.length - 1;
+
+    let hints: string[] = activePlayers.map(() => "Describe this hero's playstyle carefully without naming them!");
+
+    try {
+      const prompt = `You are a game master for "Spy" using Dota 2 heroes. The secret hero is: ${sharedHero.name} (${sharedHero.role}, style: ${sharedHero.tags.join(", ")}).
+
+Generate ${nonSpyCount} SHORT unique hints for ${nonSpyCount} different players — all about the SAME hero but from different angles:
+- 2-3 sentences about the hero's playstyle WITHOUT naming the hero
+- Each hint should emphasize a different aspect so players don't sound identical
+
+Respond ONLY with JSON array (no markdown):
+[{"playerIndex":0,"hint":"..."},...]`;
+
+      const completion = await groq.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 800,
+        temperature: 0.85,
+      });
+
+      const text = completion.choices[0]?.message?.content || "[]";
+      const clean = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+
+      let hintIdx = 0;
+      hints = activePlayers.map((_, i) => {
+        if (i === spyIndex) return "";
+        return parsed[hintIdx++]?.hint || hints[0];
+      });
+    } catch (e) {
+      console.error("Groq hint error:", e);
+    }
+
+    const updatedPlayers = lobby.players.map(p => {
+      if (p.isKicked) return p;
+      const activeIdx = activePlayers.findIndex(ap => ap.id === p.id);
+      const isSpy = activeIdx === spyIndex;
+      return {
+        ...p,
+        heroId: isSpy ? "spy" : sharedHero.id,
+        heroName: isSpy ? "???" : sharedHero.name,
+        isSpy,
+        hint: isSpy ? null : hints[activeIdx],
+        hasAnswered: false,
+        votes: 0,
+      };
+    });
+
+    await updateLobby(code, {
+      currentRound: nextRound,
+      votingOpen: false,
+      roundVotes: {},
+      players: updatedPlayers,
+    });
+
+    // Send private assignments to each player
+    for (const player of updatedPlayers.filter(p => !p.isKicked)) {
+      await pusherServer.trigger(`player-${code}-${player.id}`, "game-assigned", {
+        heroId: player.heroId,
+        heroName: player.heroName,
+        isSpy: player.isSpy,
+        hint: player.hint,
+      });
+    }
+
     await pusherServer.trigger(`lobby-${code}`, "round-started", { currentRound: nextRound });
     return NextResponse.json({ ok: true });
   }
