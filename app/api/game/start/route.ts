@@ -24,31 +24,20 @@ export async function POST(req: NextRequest) {
   // Pick a random spy
   const spyIndex = Math.floor(Math.random() * activePlayers.length);
 
-  // Assign heroes (one per non-spy player, spy gets the same hero as another player or a fake)
-  const heroCount = activePlayers.length; // everyone gets a hero (spy gets "spy" role)
-  const heroes = getRandomHeroes(heroCount);
+  // ONE shared hero for all non-spy players — that's the core of the Spy game
+  const [sharedHero] = getRandomHeroes(1);
+  const nonSpyCount = activePlayers.length - 1;
 
-  // Generate AI hints for non-spy players
-  const nonSpyHeroData = heroes.slice(0, heroCount - 1 > 0 ? heroCount : heroCount).map((h, i) => ({
-    name: h.name,
-    role: h.role,
-    tags: h.tags,
-  }));
-
-  // Get hints from Groq
-  let hints: string[] = activePlayers.map(() => "Play your role. Answer questions about your hero's playstyle carefully!");
+  // Generate personalized hints for each non-spy player about the SAME hero
+  let hints: string[] = activePlayers.map(() => "Describe this hero's playstyle carefully without naming them!");
 
   try {
-    const heroList = nonSpyHeroData.map((h, i) =>
-      `Player ${i + 1}: ${h.name} (${h.role}, style: ${h.tags.join(", ")})`
-    ).join("\n");
+    const prompt = `You are a game master for "Spy" using Dota 2 heroes. The secret hero is: ${sharedHero.name} (${sharedHero.role}, style: ${sharedHero.tags.join(", ")}).
 
-    const prompt = `You are a game master for "Spy" using Dota 2 heroes. Generate a SHORT hint for each player:
-- 2-3 sentences about their hero's playstyle WITHOUT naming the hero
-- Give them a roleplay angle for conversation
-
-Heroes:
-${heroList}
+Generate ${nonSpyCount} SHORT unique hints for ${nonSpyCount} different players — all about the SAME hero but from different angles:
+- 2-3 sentences about the hero's playstyle WITHOUT naming the hero
+- Each hint should emphasize a different aspect so players don't sound identical
+- Give each player a different roleplay angle
 
 Respond ONLY with JSON array (no markdown):
 [{"playerIndex":0,"hint":"..."},...]`;
@@ -63,20 +52,26 @@ Respond ONLY with JSON array (no markdown):
     const text = completion.choices[0]?.message?.content || "[]";
     const clean = text.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
-    hints = activePlayers.map((_, i) => parsed[i]?.hint || hints[i]);
+
+    // Map hints to non-spy players (skip spy slot)
+    let hintIdx = 0;
+    hints = activePlayers.map((_, i) => {
+      if (i === spyIndex) return "";
+      return parsed[hintIdx++]?.hint || hints[0];
+    });
   } catch (e) {
     console.error("Groq hint error:", e);
   }
 
-  // Assign heroes and spy status to players
+  // Assign roles: all non-spy players get the SAME hero, spy gets "???"
   const updatedPlayers = lobby.players.map(p => {
     if (p.isKicked) return p;
     const activeIdx = activePlayers.findIndex(ap => ap.id === p.id);
     const isSpy = activeIdx === spyIndex;
     return {
       ...p,
-      heroId: isSpy ? "spy" : heroes[activeIdx].id,
-      heroName: isSpy ? "???" : heroes[activeIdx].name,
+      heroId: isSpy ? "spy" : sharedHero.id,
+      heroName: isSpy ? "???" : sharedHero.name,
       isSpy,
       hint: isSpy ? null : hints[activeIdx],
       hasAnswered: false,
