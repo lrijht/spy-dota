@@ -50,6 +50,16 @@ export default function GamePage() {
         if (data.status === "waiting") router.push(`/lobby/${code}`);
       });
 
+    // Fetch personal assignment (handles Pusher race condition — event fires before subscription)
+    fetch(`/api/game/my-role?code=${code}&playerId=${id}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.error) {
+          setAssigned(data);
+          setWaitingAssign(false);
+        }
+      });
+
     const pusher = getPusherClient();
     pusherRef.current = pusher;
 
@@ -77,8 +87,6 @@ export default function GamePage() {
       setVotingOpen(false);
       setMyVote(null);
       setRevealed(null);
-      setWaitingAssign(true);
-      setAssigned(null);
       setShowHint(false);
     });
     lobbyChannel.bind("spy-revealed", (data: RevealData) => {
