@@ -4,7 +4,7 @@ import { pusherServer } from "@/lib/pusher";
 
 export async function POST(req: NextRequest) {
   const { code, voterId, targetId } = await req.json();
-  const lobby = getLobby(code);
+  const lobby = await getLobby(code);
   if (!lobby) return NextResponse.json({ error: "Lobby not found" }, { status: 404 });
   if (!lobby.votingOpen) return NextResponse.json({ error: "Voting not open" }, { status: 400 });
 
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   const totalVoted = Object.keys(updatedVotes).length;
   const allVoted = totalVoted >= activePlayers.length;
 
-  updateLobby(code, { roundVotes: updatedVotes, players: updatedPlayers });
+  await updateLobby(code, { roundVotes: updatedVotes, players: updatedPlayers });
 
   await pusherServer.trigger(`lobby-${code}`, "vote-updated", {
     players: activePlayers.map(p => ({ id: p.id, name: p.name, votes: p.votes })),

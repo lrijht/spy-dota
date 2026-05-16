@@ -8,7 +8,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 export async function POST(req: NextRequest) {
   const { code, playerId } = await req.json();
-  const lobby = getLobby(code);
+  const lobby = await getLobby(code);
 
   if (!lobby) return NextResponse.json({ error: "Lobby not found" }, { status: 404 });
   if (lobby.hostId !== playerId) return NextResponse.json({ error: "Not host" }, { status: 403 });
@@ -85,7 +85,7 @@ Respond ONLY with JSON array (no markdown):
     };
   });
 
-  updateLobby(code, {
+  await updateLobby(code, {
     players: updatedPlayers,
     status: "playing",
     currentRound: 1,

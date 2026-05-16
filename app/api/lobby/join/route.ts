@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Code and name required" }, { status: 400 });
   }
 
-  const lobby = getLobby(code.toUpperCase());
+  const lobby = await getLobby(code.toUpperCase());
   if (!lobby) {
     return NextResponse.json({ error: "Lobby not found" }, { status: 404 });
   }
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     answers: [],
   }];
 
-  updateLobby(code.toUpperCase(), { players: updatedPlayers });
+  await updateLobby(code.toUpperCase(), { players: updatedPlayers });
 
   // Notify all players
   await pusherServer.trigger(`lobby-${code.toUpperCase()}`, "player-joined", {

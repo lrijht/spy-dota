@@ -1,4 +1,5 @@
-// In-memory store for lobbies (resets on server restart, fine for Vercel)
+import { Redis } from "@upstash/redis";
+
 export interface Player {
   id: string;
   name: string;
@@ -26,9 +27,14 @@ export interface Lobby {
   votingOpen: boolean;
 }
 
-const lobbies = new Map<string, Lobby>();
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
 
-export function createLobby(code: string, hostId: string): Lobby {
+const TTL = 3 * 60 * 60; // 3 hours in seconds
+
+export async function createLobby(code: string, hostId: string): Promise<Lobby> {
   const lobby: Lobby = {
     code,
     hostId,
@@ -41,21 +47,19 @@ export function createLobby(code: string, hostId: string): Lobby {
     roundVotes: {},
     votingOpen: false,
   };
-  lobbies.set(code, lobby);
-  // Auto-cleanup after 3 hours
-  setTimeout(() => lobbies.delete(code), 3 * 60 * 60 * 1000);
+  await redis.set(`lobby:${code}`, lobby, { ex: TTL });
   return lobby;
 }
 
-export function getLobby(code: string): Lobby | undefined {
-  return lobbies.get(code);
+export async function getLobby(code: string): Promise<Lobby | null> {
+  return redis.get<Lobby>(`lobby:${code}`);
 }
 
-export function updateLobby(code: string, update: Partial<Lobby>): Lobby | null {
-  const lobby = lobbies.get(code);
+export async function updateLobby(code: string, update: Partial<Lobby>): Promise<Lobby | null> {
+  const lobby = await getLobby(code);
   if (!lobby) return null;
   const updated = { ...lobby, ...update };
-  lobbies.set(code, updated);
+  await redis.set(`lobby:${code}`, updated, { ex: TTL });
   return updated;
 }
 

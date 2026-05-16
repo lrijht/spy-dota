@@ -5,7 +5,7 @@ export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   if (!code) return NextResponse.json({ error: "Code required" }, { status: 400 });
 
-  const lobby = getLobby(code.toUpperCase());
+  const lobby = await getLobby(code.toUpperCase());
   if (!lobby) return NextResponse.json({ error: "Lobby not found" }, { status: 404 });
 
   return NextResponse.json({

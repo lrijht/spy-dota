@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createLobby, generateCode, getLobby } from "@/lib/store";
+import { createLobby, generateCode, getLobby, updateLobby } from "@/lib/store";
 
 function genId(n: number): string {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -14,14 +14,16 @@ export async function POST(req: NextRequest) {
 
   let code: string = generateCode();
   let attempts = 0;
-  while (getLobby(code) && attempts < 10) { code = generateCode(); attempts++; }
+  while (await getLobby(code) && attempts < 10) { code = generateCode(); attempts++; }
 
   const hostId = genId(12);
-  const lobby = createLobby(code, hostId);
-  lobby.players.push({
-    id: hostId, name: hostName.trim(), isHost: true,
-    heroId: null, heroName: null, isSpy: false, hint: null,
-    hasAnswered: false, votes: 0, isKicked: false, answers: [],
+  await createLobby(code, hostId);
+  await updateLobby(code, {
+    players: [{
+      id: hostId, name: hostName.trim(), isHost: true,
+      heroId: null, heroName: null, isSpy: false, hint: null,
+      hasAnswered: false, votes: 0, isKicked: false, answers: [],
+    }],
   });
 
   return NextResponse.json({ code, playerId: hostId });

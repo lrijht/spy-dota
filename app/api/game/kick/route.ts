@@ -4,7 +4,7 @@ import { pusherServer } from "@/lib/pusher";
 
 export async function POST(req: NextRequest) {
   const { code, hostId, targetId } = await req.json();
-  const lobby = getLobby(code);
+  const lobby = await getLobby(code);
   if (!lobby) return NextResponse.json({ error: "Lobby not found" }, { status: 404 });
   if (lobby.hostId !== hostId) return NextResponse.json({ error: "Not host" }, { status: 403 });
 
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   const updatedPlayers = lobby.players.map(p =>
     p.id === targetId ? { ...p, isKicked: true } : p
   );
-  updateLobby(code, { players: updatedPlayers });
+  await updateLobby(code, { players: updatedPlayers });
 
   await pusherServer.trigger(`lobby-${code}`, "player-kicked", {
     kickedId: targetId,

@@ -4,7 +4,7 @@ import { pusherServer } from "@/lib/pusher";
 
 export async function POST(req: NextRequest) {
   const { code, playerId, action, payload } = await req.json();
-  const lobby = getLobby(code);
+  const lobby = await getLobby(code);
   if (!lobby) return NextResponse.json({ error: "Lobby not found" }, { status: 404 });
 
   if (action === "answered") {
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     const updatedPlayers = lobby.players.map(p =>
       p.id === playerId ? { ...p, hasAnswered: true } : p
     );
-    updateLobby(code, { players: updatedPlayers });
+    await updateLobby(code, { players: updatedPlayers });
 
     const activePlayers = updatedPlayers.filter(p => !p.isKicked);
     const allAnswered = activePlayers.every(p => p.hasAnswered);
@@ -28,7 +28,6 @@ export async function POST(req: NextRequest) {
 
   if (action === "record-answer") {
     // Record another player's answer (visible only to recorder)
-    const { targetName, question, answer } = payload;
     // Just acknowledge - clients store answers locally
     return NextResponse.json({ ok: true });
   }
@@ -36,7 +35,7 @@ export async function POST(req: NextRequest) {
   if (action === "open-voting") {
     if (lobby.hostId !== playerId) return NextResponse.json({ error: "Not host" }, { status: 403 });
     const updatedPlayers = lobby.players.map(p => ({ ...p, hasAnswered: false, votes: 0 }));
-    updateLobby(code, { votingOpen: true, roundVotes: {}, players: updatedPlayers });
+    await updateLobby(code, { votingOpen: true, roundVotes: {}, players: updatedPlayers });
     await pusherServer.trigger(`lobby-${code}`, "voting-opened", {
       players: updatedPlayers.filter(p => !p.isKicked).map(p => ({ id: p.id, name: p.name, votes: 0 })),
     });
@@ -47,12 +46,12 @@ export async function POST(req: NextRequest) {
     if (lobby.hostId !== playerId) return NextResponse.json({ error: "Not host" }, { status: 403 });
     const nextRound = lobby.currentRound + 1;
     if (nextRound > lobby.rounds) {
-      updateLobby(code, { status: "finished", votingOpen: false });
+      await updateLobby(code, { status: "finished", votingOpen: false });
       await pusherServer.trigger(`lobby-${code}`, "game-finished", {});
       return NextResponse.json({ ok: true, finished: true });
     }
     const updatedPlayers = lobby.players.map(p => ({ ...p, hasAnswered: false, votes: 0 }));
-    updateLobby(code, { currentRound: nextRound, votingOpen: false, roundVotes: {}, players: updatedPlayers });
+    await updateLobby(code, { currentRound: nextRound, votingOpen: false, roundVotes: {}, players: updatedPlayers });
     await pusherServer.trigger(`lobby-${code}`, "round-started", { currentRound: nextRound });
     return NextResponse.json({ ok: true });
   }
@@ -67,7 +66,7 @@ export async function POST(req: NextRequest) {
         id: p.id, name: p.name, heroName: p.heroName, isSpy: p.isSpy,
       })),
     });
-    updateLobby(code, { status: "results" });
+    await updateLobby(code, { status: "results" });
     return NextResponse.json({ ok: true });
   }
 
