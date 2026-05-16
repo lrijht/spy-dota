@@ -263,11 +263,16 @@ export default function GamePage() {
                 {assigned.hint && (
                   <>
                     <button onClick={() => setShowHint(!showHint)} style={{ background: "rgba(200,168,75,0.1)", border: "1px solid rgba(200,168,75,0.3)", borderRadius: 8, padding: "0.4rem 0.75rem", color: "#c8a84b", cursor: "pointer", fontSize: "0.8rem", fontFamily: "inherit", marginBottom: "0.75rem" }}>
-                      {showHint ? "🙈 Скрыть подсказку" : "💡 Показать подсказку ИИ"}
+                      {showHint ? "🙈 Скрыть подсказки" : "💡 Показать 5 подсказок ИИ"}
                     </button>
                     {showHint && (
-                      <div style={{ background: "rgba(200,168,75,0.05)", border: "1px solid rgba(200,168,75,0.15)", borderRadius: 10, padding: "0.75rem", fontSize: "0.9rem", color: "#c9d1e0", textAlign: "left", lineHeight: 1.5 }}>
-                        {assigned.hint}
+                      <div style={{ background: "rgba(200,168,75,0.05)", border: "1px solid rgba(200,168,75,0.15)", borderRadius: 10, padding: "0.75rem", textAlign: "left" }}>
+                        {assigned.hint.split("\n").map((fact, i) => (
+                          <div key={i} style={{ display: "flex", gap: "0.6rem", marginBottom: i < 4 ? "0.6rem" : 0 }}>
+                            <span style={{ color: "#c8a84b", fontWeight: 700, fontSize: "0.8rem", minWidth: "1.2rem", paddingTop: "0.05rem" }}>{i + 1}.</span>
+                            <span style={{ color: "#c9d1e0", fontSize: "0.85rem", lineHeight: 1.55 }}>{fact}</span>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </>

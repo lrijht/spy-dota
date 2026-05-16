@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getLobby, updateLobby } from "@/lib/store";
 import { pusherServer } from "@/lib/pusher";
 import { getRandomHeroes } from "@/lib/heroes";
-import Groq from "groq-sdk";
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+import { generateHints } from "@/lib/generateHints";
 
 export async function POST(req: NextRequest) {
   const { code, playerId, action, payload } = await req.json();
@@ -58,37 +56,12 @@ export async function POST(req: NextRequest) {
     const [sharedHero] = getRandomHeroes(1);
     const nonSpyCount = activePlayers.length - 1;
 
-    let hints: string[] = activePlayers.map(() => "Describe this hero's playstyle carefully without naming them!");
+    const nonSpyHints = await generateHints(sharedHero, nonSpyCount);
 
-    try {
-      const prompt = `You are a game master for "Spy" using Dota 2 heroes. The secret hero is: ${sharedHero.name} (${sharedHero.role}, style: ${sharedHero.tags.join(", ")}).
-
-Generate ${nonSpyCount} SHORT unique hints for ${nonSpyCount} different players — all about the SAME hero but from different angles:
-- 2-3 sentences about the hero's playstyle WITHOUT naming the hero
-- Each hint should emphasize a different aspect so players don't sound identical
-
-Respond ONLY with JSON array (no markdown):
-[{"playerIndex":0,"hint":"..."},...]`;
-
-      const completion = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 800,
-        temperature: 0.85,
-      });
-
-      const text = completion.choices[0]?.message?.content || "[]";
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
-
-      let hintIdx = 0;
-      hints = activePlayers.map((_, i) => {
-        if (i === spyIndex) return "";
-        return parsed[hintIdx++]?.hint || hints[0];
-      });
-    } catch (e) {
-      console.error("Groq hint error:", e);
-    }
+    let hintIdx = 0;
+    const hints = activePlayers.map((_, i) =>
+      i === spyIndex ? null : (nonSpyHints[hintIdx++] ?? null)
+    );
 
     const updatedPlayers = lobby.players.map(p => {
       if (p.isKicked) return p;
