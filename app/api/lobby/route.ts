@@ -1,0 +1,28 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createLobby, generateCode, getLobby } from "@/lib/store";
+
+function genId(n: number): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let id = "";
+  for (let i = 0; i < n; i++) id += chars[Math.floor(Math.random() * chars.length)];
+  return id;
+}
+
+export async function POST(req: NextRequest) {
+  const { hostName } = await req.json();
+  if (!hostName?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 });
+
+  let code: string = generateCode();
+  let attempts = 0;
+  while (getLobby(code) && attempts < 10) { code = generateCode(); attempts++; }
+
+  const hostId = genId(12);
+  const lobby = createLobby(code, hostId);
+  lobby.players.push({
+    id: hostId, name: hostName.trim(), isHost: true,
+    heroId: null, heroName: null, isSpy: false, hint: null,
+    hasAnswered: false, votes: 0, isKicked: false, answers: [],
+  });
+
+  return NextResponse.json({ code, playerId: hostId });
+}
