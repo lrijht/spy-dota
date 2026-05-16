@@ -13,31 +13,31 @@ const ATTR_NAME: Record<Hero["attr"], string> = {
 export async function generateHints(hero: Hero, playerCount: number): Promise<string[]> {
   const fallback = Array.from({ length: playerCount }, () =>
     [
-      `This hero is played in the ${hero.role} role.`,
-      `Their primary attribute is ${ATTR_NAME[hero.attr]}.`,
-      `Key mechanics include: ${hero.tags.slice(0, 2).join(" and ")}.`,
-      `Focus on positioning and timing to maximize impact.`,
-      `Answer questions about playstyle without revealing the hero name.`,
+      `Этот герой играет на роли: ${hero.role}.`,
+      `Основной атрибут — ${ATTR_NAME[hero.attr]}.`,
+      `Ключевые механики: ${hero.tags.slice(0, 2).join(" и ")}.`,
+      `Сосредоточься на позиционировании и таймингах для максимального эффекта.`,
+      `Отвечай на вопросы о стиле игры, не раскрывая имя героя.`,
     ].join("\n")
   );
 
   try {
-    const prompt = `You are a game master for the Dota 2 social deduction game "Spy".
+    const prompt = `Ты ведущий в игре "Шпион" по вселенной Dota 2.
 
-Secret hero: ${hero.name} (${hero.role}, attribute: ${ATTR_NAME[hero.attr]}, key mechanics: ${hero.tags.join(", ")})
+Секретный герой: ${hero.name} (роль: ${hero.role}, атрибут: ${ATTR_NAME[hero.attr]}, механики: ${hero.tags.join(", ")})
 
-Generate hints for ${playerCount} players. Each player gets exactly 5 short gameplay facts — do NOT name the hero.
+Сгенерируй подсказки для ${playerCount} игроков. Каждый игрок получает ровно 5 коротких игровых фактов — НЕ называй имя героя.
 
-Each player's 5 facts must cover:
-1. Lane/role (describe without saying "position 1/2/3" — say safelane/midlane/offlane/support instead)
-2. Primary attribute and what it gives this hero (e.g. "Agility gives bonus attack speed and armor")
-3. One or two REAL Dota 2 item names that are core on this hero (use actual item names like Blink Dagger, BKB, Maelstrom etc.)
-4. One or two real Dota 2 heroes that counter this hero (use actual hero names)
-5. A specific gameplay mechanic, combo, or timing that defines how this hero is played
+5 фактов для каждого игрока должны охватывать:
+1. Лейн/роль (опиши словами: сейфлейн, мид, офлейн, саппорт — не говори "позиция 1/2/3")
+2. Основной атрибут и что он даёт герою (например: "Ловкость увеличивает скорость атаки и броню")
+3. Один-два РЕАЛЬНЫХ предмета из Dota 2, которые строят на этом герое (например: Blink Dagger, BKB, Maelstrom)
+4. Один-два реальных героя-контрпика (настоящие имена героев)
+5. Специфическая механика, комбо или тайминг, который определяет стиль игры героя
 
-Keep each fact to 1 sentence. Make players sound DIFFERENT from each other — vary which aspect each fact emphasizes.
+Каждый факт — одно предложение. Игроки должны звучать РАЗНО — варьируй акценты между ними.
 
-Respond ONLY with valid JSON, no markdown:
+Отвечай ТОЛЬКО валидным JSON, без markdown:
 [{"playerIndex":0,"facts":["...","...","...","...","..."]},{"playerIndex":1,"facts":["...","...","...","...","..."]}]`;
 
     const completion = await groq.chat.completions.create({
