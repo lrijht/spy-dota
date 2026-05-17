@@ -184,10 +184,11 @@ function LaneMap({ positions }: { positions: PosStat[] }) {
     return Math.round((s.winCount / s.matchCount) * 100);
   }
 
-  const safe = wr("POSITION_1");   // carry
-  const mid  = wr("POSITION_2");   // mid
-  const off  = wr("POSITION_3");   // offlane
-  const jungle = wr("POSITION_4"); // soft support / jungle
+  const safe    = wr("POSITION_1"); // carry - safe lane
+  const mid     = wr("POSITION_2"); // mid
+  const off     = wr("POSITION_3"); // offlane
+  const softSup = wr("POSITION_4"); // soft support - Radiant jungle
+  const hardSup = wr("POSITION_5"); // hard support - safe lane near base
 
   const B = 22; // base radius area inset
 
@@ -216,9 +217,13 @@ function LaneMap({ positions }: { positions: PosStat[] }) {
       <circle cx={200-B} cy={B} r="13" fill="#2a1010" stroke="#a3251e" strokeWidth="1.5" />
       <text x={200-B} y={B+4} textAnchor="middle" fill="#ff6b5e" fontSize="9" fontFamily="monospace" fontWeight="bold">D</text>
 
-      {/* Jungle dot */}
-      {jungle !== null && (
-        <circle cx="62" cy="138" r="7" fill={laneColor(jungle)} opacity="0.8" />
+      {/* P4 soft support - Radiant jungle (between mid and safe lane, below diagonal) */}
+      {softSup !== null && (
+        <circle cx="128" cy="142" r="7" fill={laneColor(softSup)} opacity="0.85" />
+      )}
+      {/* P5 hard support - near Radiant base on safe lane side */}
+      {hardSup !== null && (
+        <circle cx="60" cy="165" r="7" fill={laneColor(hardSup)} opacity="0.85" />
       )}
 
       {/* Win % labels outside the map area */}
@@ -531,7 +536,7 @@ export default function HeroPage() {
                 <LaneMap positions={stats.positions} />
                 {/* Legend */}
                 <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
-                  {(["POSITION_1","POSITION_2","POSITION_3","POSITION_4"] as const).map(pos => {
+                  {(["POSITION_1","POSITION_2","POSITION_3","POSITION_4","POSITION_5"] as const).map(pos => {
                     const s = stats.positions.find(p => p.position === pos);
                     if (!s || s.matchCount < 50) return null;
                     const wr = Math.round((s.winCount / s.matchCount) * 100);
