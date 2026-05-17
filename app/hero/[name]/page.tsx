@@ -30,7 +30,7 @@ interface HeroData {
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 
-const OPENDOTA = "https://api.opendota.com/api";
+const OPENDOTA = "/api/opendota";
 const CDN = "https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react";
 
 const PHASE_LABELS = ["Стартовые предметы", "Ранняя игра", "Середина игры", "Поздняя игра"];
