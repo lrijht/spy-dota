@@ -35,6 +35,7 @@ const ITEM_PHASE: Record<string, number> = {
   orb_of_venom: 0, blight_stone: 0, infused_raindrops: 0,
   magic_stick: 0, ward_observer: 0, ward_sentry: 0,
   smoke_of_deceit: 0, tome_of_knowledge: 0, cheese: 0,
+  ring_of_regen: 0, crown: 0, possessed_mask: 0,
   // Early game
   boots: 1, wind_lace: 1, phase_boots: 1, tranquil_boots: 1,
   power_treads: 1, arcane_boots: 1, null_talisman: 1, wraith_band: 1,
@@ -45,7 +46,9 @@ const ITEM_PHASE: Record<string, number> = {
   morbid_mask: 1, mask_of_madness: 1, helm_of_iron_will: 1,
   meteor_hammer: 1, enchanted_quiver: 1, blade_mail: 1,
   rod_of_atos: 1, vladmir: 1, solar_crest: 1, medallion_of_courage: 1,
-  ancient_janggo: 1,
+  ancient_janggo: 1, vanguard: 1, crimson_guard: 1,
+  platemail: 1, cloak: 1, ring_of_health: 1, void_stone: 1,
+  helm_of_iron_will2: 1, cornucopia: 1,
   // Mid game
   blink: 2, force_staff: 2, black_king_bar: 2, bloodstone: 2,
   shadow_blade: 2, silver_edge: 2, desolator: 2, mjollnir: 2,
@@ -57,6 +60,12 @@ const ITEM_PHASE: Record<string, number> = {
   parasma: 2, gleipnir: 2, travel_boots: 2, disperser: 2, pavise: 2,
   phylactery: 2, sange_and_yasha: 2, kaya_and_sange: 2, yasha_and_kaya: 2,
   bloodthorn: 2, eternal_shroud: 2, orchid: 2,
+  glimmer_cape: 2, aether_lens: 2, ghost: 2, lotus_orb: 2,
+  cyclone: 2, eul_scepter_of_divinity: 2, holy_locket: 2,
+  dagon: 2, dagon_2: 2, dagon_3: 2, dagon_4: 2, dagon_5: 2,
+  necronomicon: 2, necronomicon_2: 2, necronomicon_3: 2,
+  wraith_pact: 2, solar_crest2: 2, wind_waker: 2, vessel: 2,
+  hurricane_pike: 2, aeon_disk: 2, kaya2: 2,
   // Late game
   heart: 3, butterfly: 3, satanic: 3, abyssal_blade: 3,
   divine_rapier: 3, moon_shard: 3, skadi: 3, daedalus: 3,
@@ -64,7 +73,7 @@ const ITEM_PHASE: Record<string, number> = {
   sphere: 3, sheepstick: 3, refresher: 3, octarine_core: 3,
   travel_boots_2: 3, eye_of_skadi: 3, revenants_brooch: 3,
   apex: 3, nullifier: 3, swift_blink: 3, overwhelming_blink: 3,
-  arcane_blink: 3,
+  arcane_blink: 3, greater_crit: 3, rapier: 3,
 };
 
 const PHASE_LABELS = ["Стартовые предметы", "Ранняя игра", "Середина игры", "Поздняя игра"];
@@ -315,7 +324,7 @@ export default function HeroPage() {
         if (d1?.error) throw new Error(d1.error);
         const itemMap: Record<number, string> = {};
         for (const it of (d1.data?.constants?.items ?? [])) {
-          if (it.id && it.shortName) itemMap[it.id] = it.shortName;
+          if (it.id && it.shortName) itemMap[it.id] = it.shortName.replace(/^item_/, "");
         }
         const positions: PosStat[] = d1.data?.heroStats?.stats ?? [];
         const displayName = d1.data?.constants?.hero?.displayName ?? hero.displayName;
@@ -375,7 +384,7 @@ export default function HeroPage() {
     }
     const valid = Array.from(deduped.values()).filter(s => {
       const name = itemMap[s.itemId];
-      return name && !name.startsWith("recipe_") && s.matchCount >= 100;
+      return name && !name.startsWith("recipe_") && !name.startsWith("item_recipe") && s.matchCount >= 20;
     });
     const phases: ItemStat[][] = [[], [], [], []];
     for (const s of valid) {
