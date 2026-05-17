@@ -13,7 +13,6 @@ interface StratzHero {
 
 interface ItemStat {
   itemId: number;
-  position: string | null;
   matchCount: number;
   winCount: number;
 }
@@ -95,15 +94,9 @@ const ATTR_LABEL: Record<string, string> = {
 
 const HEROES_QUERY = `{ constants { heroes { id shortName displayName } } }`;
 
-const STATS_QUERY = `
-query HeroStats($heroId: Short!) {
+const POSITIONS_QUERY = `
+query HeroPositions($heroId: Short!) {
   heroStats {
-    itemFullPurchase(heroId: $heroId, bracketBasicIds: [LEGEND_ANCIENT]) {
-      itemId
-      position
-      matchCount
-      winCount
-    }
     stats(heroIds: [$heroId], bracketBasicIds: [LEGEND_ANCIENT], groupByPosition: true) {
       position
       matchCount
@@ -111,12 +104,18 @@ query HeroStats($heroId: Short!) {
     }
   }
   constants {
-    hero(id: $heroId) {
-      displayName
-    }
-    items {
-      id
-      shortName
+    hero(id: $heroId) { displayName }
+    items { id shortName }
+  }
+}`;
+
+const ITEMS_QUERY = `
+query HeroItems($heroId: Short!, $positionIds: [MatchPlayerPositionType]) {
+  heroStats {
+    itemFullPurchase(heroId: $heroId, bracketBasicIds: [LEGEND_ANCIENT], positionIds: $positionIds) {
+      itemId
+      matchCount
+      winCount
     }
   }
 }`;
@@ -293,6 +292,7 @@ export default function HeroPage() {
     positions: PosStat[];
     displayName: string;
     itemMap: Record<number, string>;
+    dominantPos: string | null;
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -309,7 +309,7 @@ export default function HeroPage() {
     }).catch((e: any) => setHeroListError(e.message ?? "Ошибка загрузки героев"));
   }, []);
 
-  // Fetch stats when heroName or allHeroes changes
+  // Fetch stats when heroName or allHeroes changes (two sequential calls)
   useEffect(() => {
     if (!heroName || allHeroes.length === 0) return;
     const hero = allHeroes.find(h => h.shortName === heroName);
@@ -317,24 +317,36 @@ export default function HeroPage() {
     setLoading(true);
     setError("");
     setStats(null);
-    stratz(STATS_QUERY, { heroId: hero.id }).then(data => {
-      if (data?.errors) throw new Error(data.errors[0]?.message ?? "GraphQL schema error");
-      if (data?.error) throw new Error(data.error);
-      const hd = data?.data;
-      if (!hd?.heroStats) throw new Error("heroStats не вернул данных");
-      const itemMap: Record<number, string> = {};
-      for (const it of (hd.constants?.items ?? [])) {
-        if (it.id && it.shortName) itemMap[it.id] = it.shortName;
+    (async () => {
+      try {
+        // Step 1: position stats + item name map
+        const d1 = await stratz(POSITIONS_QUERY, { heroId: hero.id });
+        if (d1?.errors) throw new Error(d1.errors[0]?.message ?? "GraphQL schema error");
+        if (d1?.error) throw new Error(d1.error);
+        const itemMap: Record<number, string> = {};
+        for (const it of (d1.data?.constants?.items ?? [])) {
+          if (it.id && it.shortName) itemMap[it.id] = it.shortName;
+        }
+        const positions: PosStat[] = d1.data?.heroStats?.stats ?? [];
+        const displayName = d1.data?.constants?.hero?.displayName ?? hero.displayName;
+
+        // Step 2: items filtered to dominant position
+        const dominantPos = [...positions].sort((a, b) => b.matchCount - a.matchCount)[0]?.position ?? null;
+        let items: ItemStat[] = [];
+        if (dominantPos) {
+          const d2 = await stratz(ITEMS_QUERY, { heroId: hero.id, positionIds: [dominantPos] });
+          if (d2?.errors) throw new Error(d2.errors[0]?.message ?? "GraphQL schema error");
+          if (d2?.error) throw new Error(d2.error);
+          items = d2.data?.heroStats?.itemFullPurchase ?? [];
+        }
+
+        setStats({ items, positions, displayName, itemMap, dominantPos });
+      } catch (e: any) {
+        setError(e.message ?? "Ошибка загрузки");
+      } finally {
+        setLoading(false);
       }
-      setStats({
-        items: hd.heroStats.itemFullPurchase ?? [],
-        positions: hd.heroStats.stats ?? [],
-        displayName: hd.constants?.hero?.displayName ?? hero.displayName,
-        itemMap,
-      });
-    }).catch((e: any) => {
-      setError(e.message ?? "Ошибка загрузки");
-    }).finally(() => setLoading(false));
+    })();
   }, [heroName, allHeroes]);
 
   const selected = allHeroes.find(h => h.shortName === heroName) ?? null;
@@ -349,14 +361,12 @@ export default function HeroPage() {
     router.push(`/hero/${h.shortName}`);
   }
 
-  // Group items into phases, filtered to the most-played position
+  // Group items into phases (already filtered to dominant position by query)
   function groupItems() {
-    const { items, positions, itemMap } = stats!;
-    const dominantPos = [...positions].sort((a, b) => b.matchCount - a.matchCount)[0]?.position ?? null;
+    const { items, itemMap, dominantPos } = stats!;
     const valid = items.filter(s => {
       const name = itemMap[s.itemId];
       if (!name || name.startsWith("recipe_") || s.matchCount < 50) return false;
-      if (dominantPos && s.position && s.position !== dominantPos) return false;
       return true;
     });
     const phases: ItemStat[][] = [[], [], [], []];
