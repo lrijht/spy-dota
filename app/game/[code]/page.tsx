@@ -8,6 +8,53 @@ interface GameAssigned { heroId: string; heroName: string; isSpy: boolean; hint:
 interface AnswerRecord { playerName: string; answer: string; }
 interface RevealData { spyId: string; spyName: string; players: { id: string; name: string; heroName: string; isSpy: boolean; }[]; }
 
+function CornerOrnament() {
+  return (
+    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="28" height="28">
+      <path d="M2 14 L2 2 L14 2" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M5 14 L5 5 L14 5" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
+      <path d="M5 5 L8 2 L11 5 L8 8 Z" fill="currentColor" opacity="0.9" />
+      <path d="M7 4 L8 3 L9 4 L8 5 Z" fill="#000" opacity="0.5" />
+      <path d="M14 5 Q18 5 20 9 Q21 12 22 14" stroke="currentColor" strokeWidth="0.7" opacity="0.65" fill="none" />
+      <circle cx="22" cy="14" r="1.2" fill="currentColor" opacity="0.85" />
+      <path d="M5 14 Q5 18 9 20 Q12 21 14 22" stroke="currentColor" strokeWidth="0.7" opacity="0.65" fill="none" />
+      <circle cx="14" cy="22" r="1.2" fill="currentColor" opacity="0.85" />
+    </svg>
+  );
+}
+
+function Corners({ color = "#c8a84b" }: { color?: string }) {
+  return (
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", color }} aria-hidden="true">
+      <div style={{ position: "absolute", top: -2, left: -2 }}><CornerOrnament /></div>
+      <div style={{ position: "absolute", top: -2, right: -2, transform: "scaleX(-1)" }}><CornerOrnament /></div>
+      <div style={{ position: "absolute", bottom: -2, left: -2, transform: "scaleY(-1)" }}><CornerOrnament /></div>
+      <div style={{ position: "absolute", bottom: -2, right: -2, transform: "scale(-1,-1)" }}><CornerOrnament /></div>
+    </div>
+  );
+}
+
+function SpyDotaCrest({ size = 36 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none"
+      style={{ filter: "drop-shadow(0 2px 0 #000) drop-shadow(0 0 8px rgba(240,192,64,0.3))", flexShrink: 0 }}>
+      <defs>
+        <linearGradient id="crestGoldG" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#f8e29b" /><stop offset="0.5" stopColor="#c8a84b" /><stop offset="1" stopColor="#5c4818" />
+        </linearGradient>
+      </defs>
+      <path d="M32 2 L58 16 L58 48 L32 62 L6 48 L6 16 Z" fill="#0a0d12" stroke="url(#crestGoldG)" strokeWidth="2" />
+      <path d="M32 7 L54 18 L54 46 L32 57 L10 46 L10 18 Z" stroke="url(#crestGoldG)" strokeWidth="0.7" fill="none" opacity="0.6" />
+      <path d="M14 32 Q32 18 50 32 Q32 46 14 32 Z" fill="#1a0606" stroke="#a3251e" strokeWidth="1" />
+      <circle cx="32" cy="32" r="7" fill="#d8362c" />
+      <circle cx="32" cy="32" r="3" fill="#fff" opacity="0.85" />
+      <circle cx="32" cy="32" r="1.4" fill="#0a0306" />
+      <path d="M10 50 L24 36" stroke="url(#crestGoldG)" strokeWidth="1.6" />
+      <path d="M54 50 L40 36" stroke="url(#crestGoldG)" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
 export default function GamePage() {
   const { code } = useParams<{ code: string }>();
   const router = useRouter();
@@ -23,8 +70,7 @@ export default function GamePage() {
   const [myVote, setMyVote] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<RevealData | null>(null);
   const [gameOver, setGameOver] = useState(false);
-  // Vote mode: answer recording
-  const [answers, setAnswers] = useState<Record<string, AnswerRecord[]>>({}); // playerName -> answers
+  const [answers, setAnswers] = useState<Record<string, AnswerRecord[]>>({});
   const [recordingFor, setRecordingFor] = useState<string | null>(null);
   const [recordText, setRecordText] = useState("");
   const [showHint, setShowHint] = useState(false);
@@ -35,7 +81,6 @@ export default function GamePage() {
     if (!id) { router.push("/"); return; }
     setMyId(id);
 
-    // Get lobby state first
     fetch(`/api/lobby/state?code=${code}`)
       .then(r => r.json())
       .then(data => {
@@ -50,345 +95,458 @@ export default function GamePage() {
         if (data.status === "waiting") router.push(`/lobby/${code}`);
       });
 
-    // Fetch personal assignment (handles Pusher race condition — event fires before subscription)
     function fetchMyRole() {
       fetch(`/api/game/my-role?code=${code}&playerId=${id}`)
         .then(r => r.json())
-        .then(data => {
-          if (!data.error) {
-            setAssigned(data);
-            setWaitingAssign(false);
-          }
-        });
+        .then(data => { if (!data.error) { setAssigned(data); setWaitingAssign(false); } });
     }
     fetchMyRole();
 
     const pusher = getPusherClient();
     pusherRef.current = pusher;
 
-    // Subscribe to lobby channel (public events)
     const lobbyChannel = pusher.subscribe(`lobby-${code}`);
-    lobbyChannel.bind("game-started", (data: any) => {
-      setMode(data.mode);
-      setRounds(data.rounds);
-      setCurrentRound(data.currentRound);
-      setPlayers(data.players);
-    });
-    lobbyChannel.bind("player-answered", (data: { players: PlayerState[]; allAnswered: boolean }) => {
-      setPlayers(data.players);
-    });
-    lobbyChannel.bind("voting-opened", (data: { players: PlayerState[] }) => {
-      setVotingOpen(true);
-      setMyVote(null);
-      setPlayers(data.players);
-    });
-    lobbyChannel.bind("vote-updated", (data: { players: PlayerState[] }) => {
-      setPlayers(data.players);
-    });
+    lobbyChannel.bind("game-started", (data: any) => { setMode(data.mode); setRounds(data.rounds); setCurrentRound(data.currentRound); setPlayers(data.players); });
+    lobbyChannel.bind("player-answered", (data: { players: PlayerState[] }) => { setPlayers(data.players); });
+    lobbyChannel.bind("voting-opened", (data: { players: PlayerState[] }) => { setVotingOpen(true); setMyVote(null); setPlayers(data.players); });
+    lobbyChannel.bind("vote-updated", (data: { players: PlayerState[] }) => { setPlayers(data.players); });
     lobbyChannel.bind("round-started", (data: { currentRound: number }) => {
-      setCurrentRound(data.currentRound);
-      setVotingOpen(false);
-      setMyVote(null);
-      setRevealed(null);
-      setShowHint(false);
-      setWaitingAssign(true);
-      setAssigned(null);
+      setCurrentRound(data.currentRound); setVotingOpen(false); setMyVote(null);
+      setRevealed(null); setShowHint(false); setWaitingAssign(true); setAssigned(null);
       fetchMyRole();
     });
-    lobbyChannel.bind("spy-revealed", (data: RevealData) => {
-      setRevealed(data);
-    });
-    lobbyChannel.bind("game-finished", () => {
-      setGameOver(true);
-    });
+    lobbyChannel.bind("spy-revealed", (data: RevealData) => { setRevealed(data); });
+    lobbyChannel.bind("game-finished", () => { setGameOver(true); });
     lobbyChannel.bind("player-kicked", (data: { kickedId: string; players: PlayerState[] }) => {
       setPlayers(data.players);
       if (data.kickedId === id) { alert("Тебя кикнули"); router.push("/"); }
     });
 
-    // Subscribe to private player channel for hero assignment
     const playerChannel = pusher.subscribe(`player-${code}-${id}`);
-    playerChannel.bind("game-assigned", (data: GameAssigned) => {
-      setAssigned(data);
-      setWaitingAssign(false);
-    });
+    playerChannel.bind("game-assigned", (data: GameAssigned) => { setAssigned(data); setWaitingAssign(false); });
 
-    return () => {
-      lobbyChannel.unbind_all();
-      playerChannel.unbind_all();
-      pusher.unsubscribe(`lobby-${code}`);
-      pusher.unsubscribe(`player-${code}-${id}`);
-    };
+    return () => { lobbyChannel.unbind_all(); playerChannel.unbind_all(); pusher.unsubscribe(`lobby-${code}`); pusher.unsubscribe(`player-${code}-${id}`); };
   }, [code, router]);
 
   async function markAnswered() {
     await fetch("/api/game/action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, playerId: myId, action: "answered" }) });
   }
-
   async function openVoting() {
     await fetch("/api/game/action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, playerId: myId, action: "open-voting" }) });
   }
-
   async function castVote(targetId: string) {
     if (myVote) return;
     setMyVote(targetId);
     await fetch("/api/game/vote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, voterId: myId, targetId }) });
   }
-
   async function revealSpy() {
     await fetch("/api/game/action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, playerId: myId, action: "reveal" }) });
   }
-
   async function nextRound() {
     await fetch("/api/game/action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, playerId: myId, action: "next-round" }) });
   }
-
   function addAnswer(playerName: string) {
     if (!recordText.trim()) return;
-    setAnswers(prev => ({
-      ...prev,
-      [playerName]: [...(prev[playerName] || []), { playerName, answer: recordText.trim() }]
-    }));
-    setRecordText("");
-    setRecordingFor(null);
+    setAnswers(prev => ({ ...prev, [playerName]: [...(prev[playerName] || []), { playerName, answer: recordText.trim() }] }));
+    setRecordText(""); setRecordingFor(null);
   }
 
   const myPlayer = players.find(p => p.id === myId);
   const isMeAnswered = myPlayer?.hasAnswered || false;
 
-  // Styles
-  const cardStyle = { background: "#0d1320", border: "1px solid #1e2a3a", borderRadius: 16, padding: "1.25rem" };
+  // WAITING FOR ASSIGNMENT
+  if (waitingAssign) {
+    return (
+      <>
+        <div className="stage-bg" />
+        <main style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div className="panel" style={{ padding: "48px 56px", textAlign: "center", position: "relative" }}>
+            <Corners />
+            <SpyDotaCrest size={64} />
+            <div className="display heading-gold" style={{ fontSize: 24, letterSpacing: ".2em", marginTop: 18 }}>РАЗДАЧА РОЛЕЙ</div>
+            <div style={{ fontFamily: "'Marcellus', serif", fontStyle: "italic", color: "var(--text-dim)", marginTop: 8, fontSize: 15 }}>
+              ИИ генерирует подсказки…
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
 
-  // GAME OVER / RESULTS
+  // GAME OVER
   if (gameOver && revealed) {
     return (
-      <main style={{ minHeight: "100vh", background: "#080b12", padding: "1.5rem 1rem", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ maxWidth: 480, width: "100%", textAlign: "center" }}>
-          <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>🎭</div>
-          <h2 style={{ fontFamily: "'Cinzel', serif", color: "#c8a84b", fontSize: "2rem", marginBottom: "0.5rem" }}>Игра окончена!</h2>
-          <div style={{ ...cardStyle, marginBottom: "1rem" }}>
-            {revealed.players.map(p => (
-              <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.6rem 0.75rem", background: p.isSpy ? "rgba(139,26,26,0.2)" : "rgba(255,255,255,0.03)", borderRadius: 10, marginBottom: "0.4rem", border: p.isSpy ? "1px solid #8b1a1a" : "1px solid transparent" }}>
-                <span style={{ color: p.id === myId ? "#c8a84b" : "#c9d1e0", fontWeight: p.isSpy ? 700 : 400 }}>
-                  {p.isSpy ? "🕵️ " : ""}{p.name}{p.id === myId ? " (ты)" : ""}
-                </span>
-                <span style={{ color: p.isSpy ? "#e74c3c" : "#4a5568", fontSize: "0.85rem" }}>{p.isSpy ? "ШПИОН" : p.heroName}</span>
-              </div>
-            ))}
+      <>
+        <div className="stage-bg" />
+        <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "1.5rem 1rem" }}>
+          <div style={{ maxWidth: 500, width: "100%" }}>
+            <div className="panel" style={{ padding: "36px 40px", textAlign: "center", marginBottom: 16, position: "relative", overflow: "hidden" }}>
+              <Corners />
+              <div style={{ position: "absolute", inset: 0, opacity: .12, background: "radial-gradient(ellipse at 50% 30%, #f0c040 0%, transparent 50%)", pointerEvents: "none" }} />
+              <div className="mono" style={{ fontSize: 11, color: "var(--gold-bright)", letterSpacing: ".4em" }}>ИГРА ОКОНЧЕНА</div>
+              <div className="display heading-gold" style={{ fontSize: 48, letterSpacing: ".08em", lineHeight: 1, marginTop: 6 }}>ФИНАЛ</div>
+            </div>
+
+            <div className="panel" style={{ padding: "22px 24px", marginBottom: 16, position: "relative" }}>
+              <Corners />
+              <div className="dota-label" style={{ marginBottom: 12 }}>ИТОГИ РАУНДА</div>
+              {revealed.players.map(p => (
+                <div key={p.id} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "10px 14px", marginBottom: 6,
+                  background: p.isSpy ? "rgba(163,37,30,0.15)" : "rgba(255,255,255,0.02)",
+                  border: `1px solid ${p.isSpy ? "#a3251e" : "#1c2530"}`,
+                }}>
+                  <span style={{ fontFamily: "'Cinzel', serif", fontSize: 13, letterSpacing: ".1em", color: p.id === myId ? "var(--gold-bright)" : "var(--parchment)" }}>
+                    {p.isSpy ? "🕵 " : ""}{p.name.toUpperCase()}{p.id === myId ? " (ТЫ)" : ""}
+                  </span>
+                  <span className="mono" style={{ fontSize: 11, color: p.isSpy ? "#ff6b5e" : "var(--text-dim)", letterSpacing: ".15em" }}>
+                    {p.isSpy ? "ШПИОН" : p.heroName.toUpperCase()}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <button className="dota-btn primary" style={{ width: "100%", padding: "16px" }} onClick={() => router.push("/")}>
+              ⚔ НА ГЛАВНУЮ
+            </button>
           </div>
-          <button onClick={() => router.push("/")} style={{ padding: "0.75rem 2rem", background: "#c8a84b", color: "#080b12", border: "none", borderRadius: 12, fontSize: "1rem", fontWeight: 700, fontFamily: "'Cinzel', serif", cursor: "pointer" }}>
-            На главную
-          </button>
-        </div>
-      </main>
+        </main>
+      </>
     );
   }
 
   // REVEAL SCREEN
   if (revealed) {
     return (
-      <main style={{ minHeight: "100vh", background: "#080b12", padding: "1.5rem 1rem", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ maxWidth: 480, width: "100%", textAlign: "center" }}>
-          <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>🕵️</div>
-          <h2 style={{ fontFamily: "'Cinzel', serif", color: "#e74c3c", fontSize: "1.8rem", marginBottom: "0.25rem" }}>Шпион раскрыт!</h2>
-          <p style={{ color: "#4a5568", marginBottom: "1.5rem" }}>
-            Шпион был — <span style={{ color: "#c8a84b", fontWeight: 700 }}>{revealed.spyName}</span>
-          </p>
-          <div style={{ ...cardStyle, marginBottom: "1rem" }}>
-            {revealed.players.map(p => (
-              <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.6rem 0.75rem", background: p.isSpy ? "rgba(139,26,26,0.2)" : "rgba(255,255,255,0.03)", borderRadius: 10, marginBottom: "0.4rem", border: p.isSpy ? "1px solid #8b1a1a" : "1px solid transparent" }}>
-                <span style={{ color: p.id === myId ? "#c8a84b" : "#c9d1e0" }}>{p.isSpy ? "🕵️ " : ""}{p.name}{p.id === myId ? " (ты)" : ""}</span>
-                <span style={{ color: p.isSpy ? "#e74c3c" : "#4a5568", fontSize: "0.85rem" }}>{p.isSpy ? "ШПИОН" : p.heroName}</span>
+      <>
+        <div className="stage-bg" />
+        <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "1.5rem 1rem" }}>
+          <div style={{ maxWidth: 500, width: "100%" }}>
+            <div className="panel" style={{ padding: "32px 36px", textAlign: "center", marginBottom: 16, position: "relative", overflow: "hidden" }}>
+              <Corners color="#a3251e" />
+              <div style={{ position: "absolute", inset: 0, opacity: .1, background: "radial-gradient(ellipse at 50% 30%, #d8362c 0%, transparent 50%)", pointerEvents: "none" }} />
+              <div className="mono" style={{ fontSize: 11, color: "#ff6b5e", letterSpacing: ".4em" }}>СОВЕТ ВЫНЕС ПРИГОВОР</div>
+              <div className="display" style={{ fontSize: 42, letterSpacing: ".1em", lineHeight: 1, marginTop: 8, color: "transparent", background: "linear-gradient(180deg, #ff8b7e 0%, #d8362c 50%, #5a120a 100%)", WebkitBackgroundClip: "text", backgroundClip: "text" }}>
+                ШПИОН РАСКРЫТ
               </div>
-            ))}
-          </div>
-          {isHost && !gameOver && (
-            <div style={{ display: "flex", gap: "0.75rem" }}>
-              {currentRound < rounds && (
-                <button onClick={nextRound} style={{ flex: 1, padding: "0.75rem", background: "#c8a84b", color: "#080b12", border: "none", borderRadius: 12, fontSize: "0.9rem", fontWeight: 700, fontFamily: "'Cinzel', serif", cursor: "pointer" }}>
-                  Следующий раунд ▶
-                </button>
-              )}
-              <button onClick={() => { fetch("/api/game/action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, playerId: myId, action: "next-round" }) }).then(r => r.json()).then(d => { if (d.finished) setGameOver(true); }); }} style={{ flex: 1, padding: "0.75rem", background: "rgba(192,57,43,0.2)", color: "#e74c3c", border: "1px solid #c0392b", borderRadius: 12, fontSize: "0.9rem", fontWeight: 700, fontFamily: "'Cinzel', serif", cursor: "pointer" }}>
-                Завершить игру
-              </button>
+              <div style={{ fontFamily: "'Marcellus', serif", fontStyle: "italic", color: "var(--parchment-dim)", marginTop: 8, fontSize: 15 }}>
+                Шпионом был — <span style={{ color: "var(--gold-bright)", fontStyle: "normal", fontFamily: "'Cinzel', serif" }}>{revealed.spyName.toUpperCase()}</span>
+              </div>
             </div>
-          )}
-        </div>
-      </main>
-    );
-  }
 
-  // WAITING FOR ASSIGNMENT
-  if (waitingAssign) {
-    return (
-      <main style={{ minHeight: "100vh", background: "#080b12", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>⚔️</div>
-          <h2 style={{ fontFamily: "'Cinzel', serif", color: "#c8a84b" }}>Раздача ролей...</h2>
-          <p style={{ color: "#4a5568", marginTop: "0.5rem" }}>ИИ генерирует подсказки</p>
-        </div>
-      </main>
-    );
-  }
-
-  return (
-    <main style={{ minHeight: "100vh", background: "#080b12", padding: "1rem", fontFamily: "'Rajdhani', sans-serif" }}>
-      <div style={{ maxWidth: 480, margin: "0 auto" }}>
-        {/* Header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-          <div>
-            <span style={{ fontFamily: "'Cinzel', serif", color: "#c8a84b", fontSize: "1.1rem", fontWeight: 700 }}>{code}</span>
-            <span style={{ color: "#4a5568", fontSize: "0.85rem", marginLeft: "0.5rem" }}>·</span>
-            <span style={{ color: "#4a5568", fontSize: "0.85rem", marginLeft: "0.5rem" }}>Раунд {currentRound}/{rounds}</span>
-          </div>
-          <div style={{ fontSize: "0.75rem", color: "#4a5568" }}>
-            {mode === "vote" ? "🗳️ Голосование" : "🃏 Простой"}
-          </div>
-        </div>
-
-        {/* My hero card */}
-        {assigned && (
-          <div style={{ ...cardStyle, marginBottom: "1rem", background: assigned.isSpy ? "rgba(139,26,26,0.15)" : "rgba(200,168,75,0.05)", border: assigned.isSpy ? "1px solid #8b1a1a" : "1px solid rgba(200,168,75,0.3)", textAlign: "center" }}>
-            {assigned.isSpy ? (
-              <>
-                <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>🕵️</div>
-                <h2 style={{ fontFamily: "'Cinzel', serif", color: "#e74c3c", fontSize: "1.8rem", margin: "0 0 0.5rem" }}>ТЫ ШПИОН</h2>
-                <p style={{ color: "#4a5568", fontSize: "0.9rem" }}>Пытайся не раскрыться. Отвечай уклончиво!</p>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#4a5568", marginBottom: "0.5rem" }}>Твой герой</div>
-                <h2 style={{ fontFamily: "'Cinzel', serif", color: "#c8a84b", fontSize: "1.8rem", margin: "0 0 0.75rem" }}>{assigned.heroName}</h2>
-                {assigned.hint && (
-                  <>
-                    <button onClick={() => setShowHint(!showHint)} style={{ background: "rgba(200,168,75,0.1)", border: "1px solid rgba(200,168,75,0.3)", borderRadius: 8, padding: "0.4rem 0.75rem", color: "#c8a84b", cursor: "pointer", fontSize: "0.8rem", fontFamily: "inherit", marginBottom: "0.75rem" }}>
-                      {showHint ? "🙈 Скрыть подсказки" : "💡 Показать 5 подсказок ИИ"}
-                    </button>
-                    {showHint && (
-                      <div style={{ background: "rgba(200,168,75,0.05)", border: "1px solid rgba(200,168,75,0.15)", borderRadius: 10, padding: "0.75rem", textAlign: "left" }}>
-                        {assigned.hint.split("\n").map((fact, i) => (
-                          <div key={i} style={{ display: "flex", gap: "0.6rem", marginBottom: i < 4 ? "0.6rem" : 0 }}>
-                            <span style={{ color: "#c8a84b", fontWeight: 700, fontSize: "0.8rem", minWidth: "1.2rem", paddingTop: "0.05rem" }}>{i + 1}.</span>
-                            <span style={{ color: "#c9d1e0", fontSize: "0.85rem", lineHeight: 1.55 }}>{fact}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* VOTE MODE */}
-        {mode === "vote" && !votingOpen && (
-          <>
-            {/* Players with answered status + answer recording */}
-            <div style={{ ...cardStyle, marginBottom: "1rem" }}>
-              <div style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#4a5568", marginBottom: "0.75rem" }}>Игроки</div>
-              {players.map(p => (
-                <div key={p.id} style={{ marginBottom: "0.6rem" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.75rem", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: "1px solid #1e2a3a" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                      <span style={{ fontSize: "0.7rem" }}>{p.hasAnswered ? "✅" : "⏳"}</span>
-                      <span style={{ color: p.id === myId ? "#c8a84b" : "#c9d1e0", fontSize: "0.9rem" }}>{p.name}{p.id === myId ? " (ты)" : ""}</span>
-                    </div>
-                    {p.id !== myId && (
-                      <button onClick={() => setRecordingFor(recordingFor === p.id ? null : p.id)} style={{ background: "rgba(26,110,181,0.15)", border: "1px solid #1a6eb5", borderRadius: 6, padding: "0.2rem 0.5rem", color: "#3498db", cursor: "pointer", fontSize: "0.7rem", fontFamily: "inherit" }}>
-                        📝 Записать
-                      </button>
-                    )}
-                  </div>
-                  {/* Record input */}
-                  {recordingFor === p.id && (
-                    <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.35rem", padding: "0 0.25rem" }}>
-                      <input value={recordText} onChange={e => setRecordText(e.target.value)} onKeyDown={e => e.key === "Enter" && addAnswer(p.name)} placeholder={`Ответ ${p.name}...`} style={{ flex: 1, background: "#080b12", border: "1px solid #1a6eb5", borderRadius: 8, padding: "0.4rem 0.7rem", color: "#c9d1e0", fontSize: "0.85rem", outline: "none", fontFamily: "inherit" }} autoFocus />
-                      <button onClick={() => addAnswer(p.name)} style={{ background: "#1a6eb5", border: "none", borderRadius: 8, padding: "0.4rem 0.7rem", color: "#fff", cursor: "pointer", fontSize: "0.85rem", fontFamily: "inherit" }}>+</button>
-                    </div>
-                  )}
-                  {/* Recorded answers */}
-                  {(answers[p.name] || []).map((a, i) => (
-                    <div key={i} style={{ marginTop: "0.25rem", padding: "0.3rem 0.75rem", background: "rgba(26,110,181,0.05)", borderRadius: 6, fontSize: "0.8rem", color: "#4a5568", display: "flex", justifyContent: "space-between" }}>
-                      <span>«{a.answer}»</span>
-                      <button onClick={() => setAnswers(prev => ({ ...prev, [p.name]: prev[p.name].filter((_, j) => j !== i) }))} style={{ background: "none", border: "none", color: "#c0392b", cursor: "pointer", fontSize: "0.8rem", padding: 0 }}>×</button>
-                    </div>
-                  ))}
+            <div className="panel" style={{ padding: "22px 24px", marginBottom: 16, position: "relative" }}>
+              <Corners />
+              <div className="dota-label" style={{ marginBottom: 12 }}>РОЛИ ИГРОКОВ</div>
+              {revealed.players.map(p => (
+                <div key={p.id} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "10px 14px", marginBottom: 6,
+                  background: p.isSpy ? "rgba(163,37,30,0.15)" : "rgba(255,255,255,0.02)",
+                  border: `1px solid ${p.isSpy ? "#a3251e" : "#1c2530"}`,
+                }}>
+                  <span style={{ fontFamily: "'Cinzel', serif", fontSize: 13, letterSpacing: ".1em", color: p.id === myId ? "var(--gold-bright)" : "var(--parchment)" }}>
+                    {p.isSpy ? "🕵 " : ""}{p.name.toUpperCase()}{p.id === myId ? " (ТЫ)" : ""}
+                  </span>
+                  <span className="mono" style={{ fontSize: 11, color: p.isSpy ? "#ff6b5e" : "var(--text-dim)", letterSpacing: ".15em" }}>
+                    {p.isSpy ? "ШПИОН" : p.heroName.toUpperCase()}
+                  </span>
                 </div>
               ))}
             </div>
 
-            {/* My answered button */}
-            {!isMeAnswered ? (
-              <button onClick={markAnswered} style={{ width: "100%", padding: "1rem", background: "#c8a84b", color: "#080b12", border: "none", borderRadius: 12, fontSize: "1rem", fontWeight: 700, fontFamily: "'Cinzel', serif", letterSpacing: "0.05em", cursor: "pointer", marginBottom: "0.75rem" }}>
-                ✅ Я ответил
-              </button>
-            ) : (
-              <div style={{ textAlign: "center", color: "#4a5568", fontSize: "0.9rem", padding: "0.75rem", marginBottom: "0.75rem" }}>✅ Ты ответил — ждём остальных</div>
-            )}
-
-            {/* Host controls */}
-            {isHost && (
-              <button onClick={openVoting} style={{ width: "100%", padding: "0.75rem", background: "rgba(192,57,43,0.15)", color: "#e74c3c", border: "1px solid #c0392b", borderRadius: 12, fontSize: "0.9rem", fontWeight: 700, fontFamily: "'Cinzel', serif", cursor: "pointer", marginBottom: "0.75rem" }}>
-                🗳️ Открыть голосование
-              </button>
-            )}
-          </>
-        )}
-
-        {/* VOTING PHASE */}
-        {mode === "vote" && votingOpen && !revealed && (
-          <div style={{ ...cardStyle, marginBottom: "1rem" }}>
-            <div style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#e74c3c", marginBottom: "0.75rem" }}>🗳️ Голосование — кто шпион?</div>
-            {players.filter(p => p.id !== myId).map(p => (
-              <button key={p.id} onClick={() => castVote(p.id)} disabled={!!myVote} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "0.75rem", background: myVote === p.id ? "rgba(192,57,43,0.2)" : "rgba(255,255,255,0.03)", border: `1px solid ${myVote === p.id ? "#c0392b" : "#1e2a3a"}`, borderRadius: 10, cursor: myVote ? "not-allowed" : "pointer", marginBottom: "0.5rem", color: "#c9d1e0", fontFamily: "inherit", fontSize: "0.95rem", textAlign: "left", transition: "all 0.15s" }}>
-                <span>{p.name}</span>
-                <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  {p.votes > 0 && <span style={{ background: "#c0392b", color: "#fff", borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 700 }}>{p.votes}</span>}
-                  {myVote === p.id && <span style={{ color: "#e74c3c", fontSize: "0.8rem" }}>← твой голос</span>}
-                </span>
-              </button>
-            ))}
-            {myVote && <p style={{ color: "#4a5568", fontSize: "0.85rem", textAlign: "center", marginTop: "0.5rem" }}>Ты проголосовал</p>}
-            {isHost && (
-              <button onClick={revealSpy} style={{ width: "100%", padding: "0.75rem", background: "#c0392b", color: "#fff", border: "none", borderRadius: 10, fontSize: "0.9rem", fontWeight: 700, fontFamily: "'Cinzel', serif", cursor: "pointer", marginTop: "0.75rem" }}>
-                👁️ Раскрыть шпиона
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* SIMPLE MODE */}
-        {mode === "simple" && !revealed && (
-          <div style={{ ...cardStyle, marginBottom: "1rem" }}>
-            <div style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#4a5568", marginBottom: "0.75rem" }}>Все игроки</div>
-            {players.map(p => (
-              <div key={p.id} style={{ display: "flex", alignItems: "center", padding: "0.6rem 0.75rem", background: "rgba(255,255,255,0.03)", borderRadius: 10, marginBottom: "0.4rem", border: p.id === myId ? "1px solid rgba(200,168,75,0.3)" : "1px solid transparent" }}>
-                <span style={{ color: p.id === myId ? "#c8a84b" : "#c9d1e0" }}>{p.name}{p.id === myId ? " (ты)" : ""}</span>
+            {isHost && !gameOver && (
+              <div style={{ display: "flex", gap: 10 }}>
+                {currentRound < rounds && (
+                  <button className="dota-btn primary" style={{ flex: 1, padding: "14px" }} onClick={nextRound}>
+                    СЛЕДУЮЩИЙ РАУНД ▶
+                  </button>
+                )}
+                <button className="dota-btn danger" style={{ flex: 1, padding: "14px" }}
+                  onClick={() => fetch("/api/game/action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, playerId: myId, action: "next-round" }) }).then(r => r.json()).then(d => { if (d.finished) setGameOver(true); })}>
+                  ЗАВЕРШИТЬ ИГРУ
+                </button>
               </div>
-            ))}
-            {isHost && (
-              <button onClick={revealSpy} style={{ width: "100%", padding: "0.75rem", background: "#c0392b", color: "#fff", border: "none", borderRadius: 10, fontSize: "0.9rem", fontWeight: 700, fontFamily: "'Cinzel', serif", cursor: "pointer", marginTop: "0.75rem" }}>
-                👁️ Раскрыть шпиона
-              </button>
             )}
           </div>
-        )}
+        </main>
+      </>
+    );
+  }
 
-        {/* Host kick panel */}
-        {isHost && (
-          <div style={{ ...cardStyle }}>
-            <div style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#4a5568", marginBottom: "0.75rem" }}>Управление игроками</div>
-            {players.filter(p => !p.isHost).map(p => (
-              <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.5rem 0.75rem", background: "rgba(255,255,255,0.02)", borderRadius: 10, marginBottom: "0.4rem" }}>
-                <span style={{ color: "#c9d1e0", fontSize: "0.9rem" }}>{p.name}</span>
-                <button onClick={async () => { await fetch("/api/game/kick", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, hostId: myId, targetId: p.id }) }); }} style={{ background: "rgba(192,57,43,0.15)", border: "1px solid #c0392b", borderRadius: 6, padding: "0.2rem 0.5rem", color: "#e74c3c", cursor: "pointer", fontSize: "0.7rem", fontFamily: "inherit" }}>Кик</button>
-              </div>
-            ))}
+  // MAIN GAME SCREEN
+  return (
+    <>
+      <div className="stage-bg" />
+      <main style={{ minHeight: "100vh", padding: "1rem" }}>
+        <div style={{ maxWidth: 500, margin: "0 auto" }}>
+
+          {/* Topbar */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "10px 16px", marginBottom: 14,
+            background: "linear-gradient(180deg, #1a232f 0%, #0c1117 100%)",
+            border: "1px solid #2a2418",
+            boxShadow: "inset 0 0 0 1px rgba(200,168,75,0.35), 0 4px 16px rgba(0,0,0,0.6)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <SpyDotaCrest size={30} />
+              <span className="display heading-gold" style={{ fontSize: 14, letterSpacing: ".22em" }}>SPY DOTA</span>
+            </div>
+            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+              <span className="mono" style={{ fontSize: 11, color: "var(--gold)", letterSpacing: ".15em" }}>{code}</span>
+              <span className="mono" style={{ fontSize: 11, color: "var(--text-dim)", letterSpacing: ".1em" }}>
+                РАУНД <span style={{ color: "var(--gold-bright)" }}>{currentRound}/{rounds}</span>
+              </span>
+              <span className="mono" style={{ fontSize: 10, color: "var(--text-mute)", letterSpacing: ".1em" }}>
+                {mode === "vote" ? "ГОЛОСОВАНИЕ" : "ПРОСТОЙ"}
+              </span>
+            </div>
           </div>
-        )}
-      </div>
-    </main>
+
+          {/* Hero / Spy card */}
+          {assigned && (
+            <div style={{
+              position: "relative",
+              padding: "24px 24px",
+              marginBottom: 14,
+              background: assigned.isSpy
+                ? "linear-gradient(180deg, rgba(80,20,16,0.7), rgba(20,5,5,0.9))"
+                : "linear-gradient(180deg, rgba(40,52,68,0.85), rgba(14,19,26,0.92))",
+              border: `1px solid ${assigned.isSpy ? "#a3251e" : "#2a2418"}`,
+              boxShadow: assigned.isSpy
+                ? "inset 0 0 0 1px rgba(216,54,44,0.55), 0 12px 40px rgba(0,0,0,0.7)"
+                : "inset 0 0 0 1px rgba(200,168,75,0.55), 0 12px 40px rgba(0,0,0,0.7)",
+              textAlign: "center",
+            }}>
+              <Corners color={assigned.isSpy ? "#a3251e" : "#c8a84b"} />
+
+              {assigned.isSpy ? (
+                <>
+                  <div className="mono" style={{ fontSize: 10, color: "#ff6b5e", letterSpacing: ".4em", marginBottom: 12 }}>ТВОЯ РОЛЬ</div>
+                  <div style={{ fontSize: 48, marginBottom: 8 }}>🕵</div>
+                  <div className="display" style={{ fontSize: 36, letterSpacing: ".25em", color: "transparent", background: "linear-gradient(180deg, #ff8b7e 0%, #d8362c 50%, #5a120a 100%)", WebkitBackgroundClip: "text", backgroundClip: "text" }}>
+                    ШПИОН
+                  </div>
+                  <div style={{ fontFamily: "'Marcellus', serif", fontStyle: "italic", color: "#d8a8a4", marginTop: 10, fontSize: 14, lineHeight: 1.5 }}>
+                    Угадай героя прежде, чем тебя раскроют. Отвечай уклончиво.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mono" style={{ fontSize: 10, color: "var(--text-mute)", letterSpacing: ".4em", marginBottom: 12 }}>ТВОЙ ГЕРОЙ</div>
+                  <div className="display heading-gold" style={{ fontSize: 32, letterSpacing: ".15em", marginBottom: 8 }}>
+                    {assigned.heroName.toUpperCase()}
+                  </div>
+                  {assigned.hint && (
+                    <>
+                      <button
+                        className="dota-btn sm"
+                        style={{ marginTop: 12 }}
+                        onClick={() => setShowHint(!showHint)}
+                      >
+                        {showHint ? "СКРЫТЬ ПОДСКАЗКИ" : "💡 5 ПОДСКАЗОК ОТ ИИ"}
+                      </button>
+                      {showHint && (
+                        <div style={{
+                          marginTop: 14, padding: "14px 16px", textAlign: "left",
+                          background: "rgba(200,168,75,0.04)",
+                          border: "1px solid rgba(200,168,75,0.2)",
+                          boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.5)",
+                        }}>
+                          {assigned.hint.split("\n").map((fact, i) => (
+                            <div key={i} style={{ display: "flex", gap: 10, marginBottom: i < 4 ? 10 : 0 }}>
+                              <span style={{ fontFamily: "'Cinzel', serif", color: "var(--gold)", fontWeight: 700, fontSize: 11, minWidth: 18 }}>{i + 1}.</span>
+                              <span style={{ fontFamily: "'Marcellus', serif", color: "var(--parchment)", fontSize: 14, lineHeight: 1.55 }}>{fact}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* VOTE MODE — players + recording */}
+          {mode === "vote" && !votingOpen && (
+            <>
+              <div className="panel" style={{ padding: "20px 22px", marginBottom: 12, position: "relative" }}>
+                <Corners />
+                <div className="dota-label" style={{ marginBottom: 12 }}>ИГРОКИ СОВЕТА</div>
+                {players.map(p => (
+                  <div key={p.id} style={{ marginBottom: 8 }}>
+                    <div style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      padding: "8px 12px",
+                      background: p.id === myId ? "rgba(200,168,75,0.06)" : "rgba(255,255,255,0.02)",
+                      border: `1px solid ${p.id === myId ? "rgba(200,168,75,0.25)" : "#1c2530"}`,
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 12 }}>{p.hasAnswered ? "✅" : "⏳"}</span>
+                        <span style={{ fontFamily: "'Cinzel', serif", fontSize: 12, letterSpacing: ".1em", color: p.id === myId ? "var(--gold-bright)" : "var(--parchment)" }}>
+                          {p.name.toUpperCase()}{p.id === myId ? " (ТЫ)" : ""}
+                        </span>
+                      </div>
+                      {p.id !== myId && (
+                        <button
+                          className="dota-btn sm"
+                          onClick={() => setRecordingFor(recordingFor === p.id ? null : p.id)}
+                        >
+                          📝 ЗАПИСАТЬ
+                        </button>
+                      )}
+                    </div>
+                    {recordingFor === p.id && (
+                      <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                        <input
+                          className="dota-input"
+                          value={recordText}
+                          onChange={e => setRecordText(e.target.value)}
+                          onKeyDown={e => e.key === "Enter" && addAnswer(p.name)}
+                          placeholder={`Ответ ${p.name}…`}
+                          autoFocus
+                          style={{ flex: 1, padding: "8px 12px", fontSize: 14 }}
+                        />
+                        <button className="dota-btn sm" onClick={() => addAnswer(p.name)}>+</button>
+                      </div>
+                    )}
+                    {(answers[p.name] || []).map((a, i) => (
+                      <div key={i} style={{
+                        display: "flex", justifyContent: "space-between", alignItems: "center",
+                        marginTop: 4, padding: "5px 12px",
+                        background: "rgba(200,168,75,0.05)", border: "1px solid rgba(200,168,75,0.15)",
+                        fontFamily: "'Marcellus', serif", fontSize: 13, color: "var(--text-dim)", fontStyle: "italic",
+                      }}>
+                        <span>«{a.answer}»</span>
+                        <button onClick={() => setAnswers(prev => ({ ...prev, [p.name]: prev[p.name].filter((_, j) => j !== i) }))}
+                          style={{ background: "none", border: "none", color: "#d8362c", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+
+              {!isMeAnswered ? (
+                <button className="dota-btn primary" style={{ width: "100%", padding: "14px", marginBottom: 10 }} onClick={markAnswered}>
+                  ✅ Я ОТВЕТИЛ
+                </button>
+              ) : (
+                <div className="panel" style={{ padding: "12px 18px", marginBottom: 10, textAlign: "center", position: "relative" }}>
+                  <Corners />
+                  <span style={{ fontFamily: "'Marcellus', serif", fontStyle: "italic", color: "var(--text-dim)", fontSize: 14 }}>
+                    ✅ Ты ответил — ждём остальных
+                  </span>
+                </div>
+              )}
+
+              {isHost && (
+                <button className="dota-btn danger" style={{ width: "100%", padding: "14px", marginBottom: 10 }} onClick={openVoting}>
+                  🗳 ОТКРЫТЬ ГОЛОСОВАНИЕ
+                </button>
+              )}
+            </>
+          )}
+
+          {/* VOTING PHASE */}
+          {mode === "vote" && votingOpen && !revealed && (
+            <div className="panel" style={{ padding: "22px 24px", marginBottom: 12, position: "relative" }}>
+              <Corners color="#a3251e" />
+              <div className="mono" style={{ fontSize: 10, color: "#ff6b5e", letterSpacing: ".3em", marginBottom: 14 }}>
+                ⚠ ГОЛОСОВАНИЕ — КТО ШПИОН?
+              </div>
+              {players.filter(p => p.id !== myId).map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => castVote(p.id)}
+                  disabled={!!myVote}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    width: "100%", padding: "12px 14px", marginBottom: 8,
+                    background: myVote === p.id ? "rgba(163,37,30,0.2)" : "rgba(255,255,255,0.02)",
+                    border: `1px solid ${myVote === p.id ? "#a3251e" : "#1c2530"}`,
+                    cursor: myVote ? "not-allowed" : "pointer",
+                    fontFamily: "'Cinzel', serif", fontSize: 12, letterSpacing: ".12em",
+                    color: "var(--parchment)", textAlign: "left",
+                    transition: "all .15s ease",
+                  }}
+                >
+                  <span>{p.name.toUpperCase()}</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {p.votes > 0 && (
+                      <span style={{ background: "#d8362c", color: "#fff", borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>
+                        {p.votes}
+                      </span>
+                    )}
+                    {myVote === p.id && <span className="mono" style={{ fontSize: 10, color: "#ff6b5e" }}>← МОЙ ГОЛОС</span>}
+                  </span>
+                </button>
+              ))}
+              {myVote && (
+                <div style={{ fontFamily: "'Marcellus', serif", fontStyle: "italic", color: "var(--text-dim)", textAlign: "center", marginTop: 6, fontSize: 13 }}>
+                  Ты проголосовал
+                </div>
+              )}
+              {isHost && (
+                <button className="dota-btn danger" style={{ width: "100%", padding: "14px", marginTop: 14 }} onClick={revealSpy}>
+                  👁 РАСКРЫТЬ ШПИОНА
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* SIMPLE MODE */}
+          {mode === "simple" && !revealed && (
+            <div className="panel" style={{ padding: "22px 24px", marginBottom: 12, position: "relative" }}>
+              <Corners />
+              <div className="dota-label" style={{ marginBottom: 12 }}>ВСЕ ИГРОКИ</div>
+              {players.map(p => (
+                <div key={p.id} style={{
+                  padding: "10px 14px", marginBottom: 6,
+                  background: p.id === myId ? "rgba(200,168,75,0.06)" : "rgba(255,255,255,0.02)",
+                  border: `1px solid ${p.id === myId ? "rgba(200,168,75,0.25)" : "#1c2530"}`,
+                }}>
+                  <span style={{ fontFamily: "'Cinzel', serif", fontSize: 12, letterSpacing: ".1em", color: p.id === myId ? "var(--gold-bright)" : "var(--parchment)" }}>
+                    {p.name.toUpperCase()}{p.id === myId ? " (ТЫ)" : ""}
+                  </span>
+                </div>
+              ))}
+              {isHost && (
+                <button className="dota-btn danger" style={{ width: "100%", padding: "14px", marginTop: 14 }} onClick={revealSpy}>
+                  👁 РАСКРЫТЬ ШПИОНА
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Host kick panel */}
+          {isHost && (
+            <div className="panel" style={{ padding: "20px 22px", position: "relative" }}>
+              <Corners />
+              <div className="dota-label" style={{ marginBottom: 12 }}>УПРАВЛЕНИЕ ИГРОКАМИ</div>
+              {players.filter(p => !p.isHost).map(p => (
+                <div key={p.id} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "8px 12px", marginBottom: 6,
+                  background: "rgba(255,255,255,0.02)", border: "1px solid #1c2530",
+                }}>
+                  <span style={{ fontFamily: "'Cinzel', serif", fontSize: 12, letterSpacing: ".1em", color: "var(--parchment)" }}>
+                    {p.name.toUpperCase()}
+                  </span>
+                  <button
+                    className="dota-btn danger sm"
+                    onClick={async () => { await fetch("/api/game/kick", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, hostId: myId, targetId: p.id }) }); }}
+                  >
+                    КИК
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+        </div>
+      </main>
+    </>
   );
 }
