@@ -118,16 +118,18 @@ query HeroPositions($heroId: Short!) {
   }
 }`;
 
-const ITEMS_QUERY = `
-query HeroItems($heroId: Short!, $positionIds: [MatchPlayerPositionType]) {
-  heroStats {
-    itemFullPurchase(heroId: $heroId, bracketBasicIds: [LEGEND_ANCIENT], positionIds: $positionIds) {
-      itemId
-      matchCount
-      winCount
+// pos is inlined (not a variable) so Stratz treats it as a proper enum literal
+function buildItemsQuery(pos: string) {
+  return `query HeroItems($heroId: Short!) {
+    heroStats {
+      itemFullPurchase(heroId: $heroId, positionIds: [${pos}]) {
+        itemId
+        matchCount
+        winCount
+      }
     }
-  }
-}`;
+  }`;
+}
 
 async function stratz(query: string, variables?: object) {
   const key = process.env.NEXT_PUBLIC_STRATZ_API_KEY;
@@ -338,7 +340,7 @@ export default function HeroPage() {
 
         const itemResults = await Promise.all(
           topPositions.map(pos =>
-            stratz(ITEMS_QUERY, { heroId: hero.id, positionIds: [pos] })
+            stratz(buildItemsQuery(pos), { heroId: hero.id })
           )
         );
 
