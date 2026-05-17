@@ -111,8 +111,8 @@ export default function Home() {
               <div className="dota-divider"><span className="line" /><span className="glyph">◆</span><span className="line" /></div>
 
               <p style={{ color: "var(--parchment-dim)", fontSize: 16, lineHeight: 1.55, margin: 0 }}>
-                Шестеро героев собираются в одном месте. Пятеро знают, где они стоят.
-                <strong style={{ color: "#ff6b5e", fontStyle: "italic" }}> Один — нет.</strong> Он должен угадать место прежде, чем совет раскроет его. Задавай вопросы. Ври осторожно. Голосуй мудро.
+                Все игроки получают одного героя. Все, кроме шпиона.
+                <strong style={{ color: "#ff6b5e", fontStyle: "italic" }}> Он должен угадать героя</strong> прежде, чем совет раскроет его. Задавай вопросы. Ври осторожно. Голосуй мудро.
               </p>
 
               <div style={{ display: "flex", gap: 24, marginTop: 28, padding: "14px 18px", background: "rgba(0,0,0,0.45)", border: "1px solid #2a2418", boxShadow: "inset 0 0 0 1px rgba(200,168,75,0.3)" }}>
