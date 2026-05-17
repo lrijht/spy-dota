@@ -34,6 +34,24 @@ function Corners({ color = "#c8a84b" }: { color?: string }) {
   );
 }
 
+const CDN_OVERRIDES: Record<string, string> = {
+  cm: "crystal_maiden",
+  drow: "drow_ranger",
+  witch_doctor2: "enigma",
+  lion2: "natures_prophet",
+  razor2: "techies",
+  clinkz2: "clinkz",
+  ancient_apparition2: "ancient_apparition",
+  underlord: "abyssal_underlord",
+  icarus: "phoenix",
+  outworld_destroyer: "obsidian_destroyer",
+};
+
+function heroIconUrl(heroId: string): string {
+  const name = CDN_OVERRIDES[heroId] ?? heroId;
+  return `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/${name}_icon.png`;
+}
+
 function SpyDotaCrest({ size = 36 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none"
@@ -334,7 +352,26 @@ export default function GamePage() {
                 </>
               ) : (
                 <>
-                  <div className="mono" style={{ fontSize: 10, color: "var(--text-mute)", letterSpacing: ".4em", marginBottom: 12 }}>ТВОЙ ГЕРОЙ</div>
+                  <div className="mono" style={{ fontSize: 10, color: "var(--text-mute)", letterSpacing: ".4em", marginBottom: 14 }}>ТВОЙ ГЕРОЙ</div>
+                  {/* Hero icon from Valve CDN */}
+                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+                    <div style={{
+                      width: 80, height: 80,
+                      border: "1px solid rgba(200,168,75,0.5)",
+                      boxShadow: "0 0 20px rgba(200,168,75,0.2), inset 0 0 0 1px rgba(0,0,0,0.6)",
+                      overflow: "hidden",
+                      background: "rgba(0,0,0,0.4)",
+                    }}>
+                      <img
+                        src={heroIconUrl(assigned.heroId)}
+                        alt={assigned.heroName}
+                        width={80}
+                        height={80}
+                        style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }}
+                        onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                      />
+                    </div>
+                  </div>
                   <div className="display heading-gold" style={{ fontSize: 32, letterSpacing: ".15em", marginBottom: 8 }}>
                     {assigned.heroName.toUpperCase()}
                   </div>
