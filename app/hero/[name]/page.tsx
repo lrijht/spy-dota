@@ -178,66 +178,54 @@ function laneColor(wr: number | null) {
 }
 
 function LaneMap({ positions }: { positions: PosStat[] }) {
-  function wr(pos: string) {
-    const s = positions.find(p => p.position === pos);
+  const B = 22;
+
+  // Each position sits on its lane: P1/P5 on safe lane, P2 on mid, P3/P4 on offlane
+  const dots = [
+    { key: "POSITION_5", label: "5", cx: 50,  cy: 172 }, // safe lane near Radiant base
+    { key: "POSITION_1", label: "1", cx: 172, cy: 132 }, // safe lane right side (carry farms here)
+    { key: "POSITION_2", label: "2", cx: 100, cy: 100 }, // mid diagonal centre
+    { key: "POSITION_4", label: "4", cx: 28,  cy: 90  }, // offlane left side (supports offlaner)
+    { key: "POSITION_3", label: "3", cx: 90,  cy: 28  }, // offlane top (far from base)
+  ];
+
+  function posWr(key: string) {
+    const s = positions.find(p => p.position === key);
     if (!s || s.matchCount < 50) return null;
     return Math.round((s.winCount / s.matchCount) * 100);
   }
-
-  const safe    = wr("POSITION_1"); // carry - safe lane
-  const mid     = wr("POSITION_2"); // mid
-  const off     = wr("POSITION_3"); // offlane
-  const softSup = wr("POSITION_4"); // soft support - Radiant jungle
-  const hardSup = wr("POSITION_5"); // hard support - safe lane near base
-
-  const B = 22; // base radius area inset
 
   return (
     <svg viewBox="0 0 200 200" width={190} height={190}
       style={{ border: "1px solid rgba(200,168,75,0.25)", display: "block", flexShrink: 0 }}>
       <rect width="200" height="200" fill="#030c05" />
-
-      {/* River */}
       <polygon points="85,200 115,200 200,115 200,85" fill="#082030" opacity="0.9" />
 
-      {/* Lanes — drawn thin so bases cleanly cap the intersections */}
-      {/* Safe (bottom + right) */}
+      {/* Lane lines — always grey */}
       <polyline points={`${B},${200-B} ${200-B},${200-B} ${200-B},${B}`}
-        stroke={laneColor(safe)} strokeWidth="11" fill="none" strokeLinejoin="round" />
-      {/* Off (left + top) */}
+        stroke="#1c2e1c" strokeWidth="11" fill="none" strokeLinejoin="round" />
       <polyline points={`${B},${200-B} ${B},${B} ${200-B},${B}`}
-        stroke={laneColor(off)} strokeWidth="11" fill="none" strokeLinejoin="round" />
-      {/* Mid (diagonal) */}
-      <line x1={B} y1={200-B} x2={200-B} y2={B}
-        stroke={laneColor(mid)} strokeWidth="11" />
+        stroke="#1c2e1c" strokeWidth="11" fill="none" strokeLinejoin="round" />
+      <line x1={B} y1={200-B} x2={200-B} y2={B} stroke="#1c2e1c" strokeWidth="11" />
 
-      {/* Bases — drawn on top to cap the messy convergence points */}
+      {/* Bases */}
       <circle cx={B} cy={200-B} r="13" fill="#1a2a10" stroke="#c8a84b" strokeWidth="1.5" />
       <text x={B} y={200-B+4} textAnchor="middle" fill="#c8a84b" fontSize="9" fontFamily="monospace" fontWeight="bold">R</text>
       <circle cx={200-B} cy={B} r="13" fill="#2a1010" stroke="#a3251e" strokeWidth="1.5" />
       <text x={200-B} y={B+4} textAnchor="middle" fill="#ff6b5e" fontSize="9" fontFamily="monospace" fontWeight="bold">D</text>
 
-      {/* P4 soft support - Radiant jungle (between mid and safe lane, below diagonal) */}
-      {softSup !== null && (
-        <circle cx="128" cy="142" r="7" fill={laneColor(softSup)} opacity="0.85" />
-      )}
-      {/* P5 hard support - near Radiant base on safe lane side */}
-      {hardSup !== null && (
-        <circle cx="60" cy="165" r="7" fill={laneColor(hardSup)} opacity="0.85" />
-      )}
-
-      {/* Win % labels outside the map area */}
-      {safe !== null && (
-        <text x="155" y="196" textAnchor="middle" fill="#d8c894" fontSize="9" fontFamily="monospace">{safe}%</text>
-      )}
-      {mid !== null && (
-        <text x="108" y="92" textAnchor="middle" fill="#d8c894" fontSize="9" fontFamily="monospace"
-          transform="rotate(-45,108,92)">{mid}%</text>
-      )}
-      {off !== null && (
-        <text x="6" y="90" textAnchor="middle" fill="#d8c894" fontSize="9" fontFamily="monospace"
-          transform="rotate(-90,6,90)">{off}%</text>
-      )}
+      {/* Position dots — coloured by win rate, numbered */}
+      {dots.map(({ key, label, cx, cy }) => {
+        const w = posWr(key);
+        if (w === null) return null;
+        return (
+          <g key={key}>
+            <circle cx={cx} cy={cy} r="10" fill={laneColor(w)} stroke="#000" strokeWidth="1.5" />
+            <text x={cx} y={cy + 4} textAnchor="middle" fill="#fff" fontSize="9"
+              fontFamily="monospace" fontWeight="bold">{label}</text>
+          </g>
+        );
+      })}
     </svg>
   );
 }
