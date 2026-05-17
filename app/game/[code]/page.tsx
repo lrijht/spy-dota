@@ -409,6 +409,17 @@ export default function GamePage() {
                       )}
                     </>
                   )}
+                  <div style={{ marginTop: 14 }}>
+                    <a
+                      href={`/hero/${CDN_OVERRIDES[assigned.heroId] ?? assigned.heroId}`}
+                      className="dota-btn sm"
+                      style={{ textDecoration: "none", fontSize: 10, letterSpacing: ".15em" }}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      📊 СТАТИСТИКА ГЕРОЯ
+                    </a>
+                  </div>
                 </>
               )}
             </div>

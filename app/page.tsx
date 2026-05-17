@@ -125,8 +125,13 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="mono" style={{ fontSize: 10, color: "var(--text-mute)", letterSpacing: ".2em", marginTop: 24 }}>
-              {"// 2 РЕЖИМА · ГОЛОСОВАНИЕ · ПРОСТОЙ"}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 24 }}>
+              <div className="mono" style={{ fontSize: 10, color: "var(--text-mute)", letterSpacing: ".2em" }}>
+                {"// 2 РЕЖИМА · ГОЛОСОВАНИЕ · ПРОСТОЙ"}
+              </div>
+              <a href="/hero" className="dota-btn sm" style={{ textDecoration: "none", fontSize: 10, letterSpacing: ".15em" }}>
+                📊 ГЕРОИ
+              </a>
             </div>
           </div>
 
