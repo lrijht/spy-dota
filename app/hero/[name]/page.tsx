@@ -13,6 +13,7 @@ interface StratzHero {
 
 interface ItemStat {
   itemId: number;
+  position: string | null;
   matchCount: number;
   winCount: number;
 }
@@ -99,6 +100,7 @@ query HeroStats($heroId: Short!) {
   heroStats {
     itemFullPurchase(heroId: $heroId, bracketBasicIds: [LEGEND_ANCIENT]) {
       itemId
+      position
       matchCount
       winCount
     }
@@ -177,51 +179,49 @@ function LaneMap({ positions }: { positions: PosStat[] }) {
   const off  = wr("POSITION_3");   // offlane
   const jungle = wr("POSITION_4"); // soft support / jungle
 
+  const B = 22; // base radius area inset
+
   return (
     <svg viewBox="0 0 200 200" width={190} height={190}
-      style={{ border: "1px solid rgba(200,168,75,0.3)", display: "block", flexShrink: 0 }}>
-      {/* Background */}
-      <rect width="200" height="200" fill="#040e06" />
-
-      {/* Lane fills */}
-      <path d="M28,172 L172,172 L172,28" stroke={laneColor(safe)} strokeWidth="18" fill="none"
-        strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
-      <path d="M28,172 L172,28" stroke={laneColor(mid)} strokeWidth="18" fill="none" opacity="0.85" />
-      <path d="M28,172 L28,28 L172,28" stroke={laneColor(off)} strokeWidth="18" fill="none"
-        strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
-
-      {/* Jungle dots */}
-      {jungle !== null && (
-        <>
-          <circle cx="60" cy="140" r="8" fill={laneColor(jungle)} opacity="0.75" />
-          <circle cx="140" cy="60" r="8" fill={laneColor(jungle)} opacity="0.75" />
-        </>
-      )}
+      style={{ border: "1px solid rgba(200,168,75,0.25)", display: "block", flexShrink: 0 }}>
+      <rect width="200" height="200" fill="#030c05" />
 
       {/* River */}
-      <path d="M155,120 L120,155" stroke="#0a3a4a" strokeWidth="9" fill="none" opacity="0.9" />
-      <path d="M80,45 L45,80" stroke="#0a3a4a" strokeWidth="9" fill="none" opacity="0.9" />
+      <polygon points="85,200 115,200 200,115 200,85" fill="#082030" opacity="0.9" />
 
-      {/* Bases */}
-      <circle cx="28" cy="172" r="11" fill="#c8a84b" />
-      <text x="28" y="176" textAnchor="middle" fill="#000" fontSize="8" fontFamily="monospace" fontWeight="bold">R</text>
-      <circle cx="172" cy="28" r="11" fill="#a3251e" />
-      <text x="172" y="32" textAnchor="middle" fill="#fff" fontSize="8" fontFamily="monospace" fontWeight="bold">D</text>
+      {/* Lanes — drawn thin so bases cleanly cap the intersections */}
+      {/* Safe (bottom + right) */}
+      <polyline points={`${B},${200-B} ${200-B},${200-B} ${200-B},${B}`}
+        stroke={laneColor(safe)} strokeWidth="11" fill="none" strokeLinejoin="round" />
+      {/* Off (left + top) */}
+      <polyline points={`${B},${200-B} ${B},${B} ${200-B},${B}`}
+        stroke={laneColor(off)} strokeWidth="11" fill="none" strokeLinejoin="round" />
+      {/* Mid (diagonal) */}
+      <line x1={B} y1={200-B} x2={200-B} y2={B}
+        stroke={laneColor(mid)} strokeWidth="11" />
 
-      {/* Win rate labels */}
+      {/* Bases — drawn on top to cap the messy convergence points */}
+      <circle cx={B} cy={200-B} r="13" fill="#1a2a10" stroke="#c8a84b" strokeWidth="1.5" />
+      <text x={B} y={200-B+4} textAnchor="middle" fill="#c8a84b" fontSize="9" fontFamily="monospace" fontWeight="bold">R</text>
+      <circle cx={200-B} cy={B} r="13" fill="#2a1010" stroke="#a3251e" strokeWidth="1.5" />
+      <text x={200-B} y={B+4} textAnchor="middle" fill="#ff6b5e" fontSize="9" fontFamily="monospace" fontWeight="bold">D</text>
+
+      {/* Jungle dot */}
+      {jungle !== null && (
+        <circle cx="62" cy="138" r="7" fill={laneColor(jungle)} opacity="0.8" />
+      )}
+
+      {/* Win % labels outside the map area */}
       {safe !== null && (
-        <text x="152" y="190" textAnchor="middle" fill="#d8c894" fontSize="10" fontFamily="monospace">{safe}%</text>
+        <text x="155" y="196" textAnchor="middle" fill="#d8c894" fontSize="9" fontFamily="monospace">{safe}%</text>
       )}
       {mid !== null && (
-        <text x="105" y="98" textAnchor="middle" fill="#d8c894" fontSize="10" fontFamily="monospace"
-          transform="rotate(-45 105 98)">{mid}%</text>
+        <text x="108" y="92" textAnchor="middle" fill="#d8c894" fontSize="9" fontFamily="monospace"
+          transform="rotate(-45,108,92)">{mid}%</text>
       )}
       {off !== null && (
-        <text x="12" y="95" textAnchor="middle" fill="#d8c894" fontSize="10" fontFamily="monospace"
-          transform="rotate(-90 12 95)">{off}%</text>
-      )}
-      {jungle !== null && (
-        <text x="60" y="158" textAnchor="middle" fill="#d8c894" fontSize="8" fontFamily="monospace">{jungle}%</text>
+        <text x="6" y="90" textAnchor="middle" fill="#d8c894" fontSize="9" fontFamily="monospace"
+          transform="rotate(-90,6,90)">{off}%</text>
       )}
     </svg>
   );
@@ -349,12 +349,15 @@ export default function HeroPage() {
     router.push(`/hero/${h.shortName}`);
   }
 
-  // Group items into phases
+  // Group items into phases, filtered to the most-played position
   function groupItems() {
-    const { items, itemMap } = stats!;
+    const { items, positions, itemMap } = stats!;
+    const dominantPos = [...positions].sort((a, b) => b.matchCount - a.matchCount)[0]?.position ?? null;
     const valid = items.filter(s => {
       const name = itemMap[s.itemId];
-      return name && !name.startsWith("recipe_") && s.matchCount > 100;
+      if (!name || name.startsWith("recipe_") || s.matchCount < 50) return false;
+      if (dominantPos && s.position && s.position !== dominantPos) return false;
+      return true;
     });
     const phases: ItemStat[][] = [[], [], [], []];
     for (const s of valid) {
@@ -363,13 +366,9 @@ export default function HeroPage() {
       phases[phase].push(s);
     }
     for (const phase of phases) {
-      phase.sort((a, b) => {
-        const awr = a.winCount / a.matchCount;
-        const bwr = b.winCount / b.matchCount;
-        return bwr - awr || b.matchCount - a.matchCount;
-      });
+      phase.sort((a, b) => b.matchCount - a.matchCount);
     }
-    return phases;
+    return { phases, dominantPos };
   }
 
   // Overall win rate across all positions
@@ -382,7 +381,7 @@ export default function HeroPage() {
   }
 
   const wr = stats ? overallWr() : null;
-  const itemPhases = stats ? groupItems() : null;
+  const itemData = stats ? groupItems() : null;
 
   return (
     <>
@@ -585,15 +584,21 @@ export default function HeroPage() {
             {/* Item build */}
             <div className="panel" style={{ padding: "18px 20px 22px", position: "relative" }}>
               <Corners />
-              <div className="dota-label" style={{ marginBottom: 14 }}>СБОРКА ПРЕДМЕТОВ</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 14 }}>
+                <div className="dota-label">СБОРКА ПРЕДМЕТОВ</div>
+                {itemData?.dominantPos && (
+                  <span className="mono" style={{ fontSize: 9, color: "var(--teal)", letterSpacing: ".2em" }}>
+                    {POS_LABELS[itemData.dominantPos] ?? itemData.dominantPos}
+                  </span>
+                )}
+              </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                {itemPhases!.map((phase, idx) => {
+                {itemData!.phases.map((phase, idx) => {
                   if (phase.length === 0) return null;
                   return (
                     <div key={idx}>
                       <div className="mono" style={{
-                        fontSize: 10, color: "var(--text-mute)", letterSpacing: ".25em",
-                        marginBottom: 10,
+                        fontSize: 10, color: "var(--text-mute)", letterSpacing: ".25em", marginBottom: 10,
                       }}>
                         {PHASE_LABELS[idx]}
                       </div>
