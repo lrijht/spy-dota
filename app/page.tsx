@@ -126,7 +126,7 @@ export default function Home() {
             </div>
 
             <div className="mono" style={{ fontSize: 10, color: "var(--text-mute)", letterSpacing: ".2em", marginTop: 24 }}>
-              // 2 РЕЖИМА · ГОЛОСОВАНИЕ · ПРОСТОЙ
+              {"// 2 РЕЖИМА · ГОЛОСОВАНИЕ · ПРОСТОЙ"}
             </div>
           </div>
 
@@ -189,7 +189,7 @@ export default function Home() {
             </div>
 
             <div className="mono" style={{ fontSize: 10, color: "var(--text-mute)", letterSpacing: ".25em", textAlign: "center" }}>
-              // ПРЕДАТЕЛЬСТВО — ЭТО ВЕСЕЛО
+              {"// ПРЕДАТЕЛЬСТВО — ЭТО ВЕСЕЛО"}
             </div>
           </div>
 
