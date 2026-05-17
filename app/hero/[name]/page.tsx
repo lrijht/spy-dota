@@ -116,9 +116,12 @@ query HeroStats($heroId: Short!) {
 }`;
 
 async function stratz(query: string, variables?: object) {
-  const res = await fetch("/api/stratz", {
+  const key = process.env.NEXT_PUBLIC_STRATZ_API_KEY;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (key) headers["Authorization"] = `Bearer ${key}`;
+  const res = await fetch("https://api.stratz.com/graphql", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ query, variables }),
   });
   return res.json();
