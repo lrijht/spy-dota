@@ -230,25 +230,16 @@ function LaneMap({ positions }: { positions: PosStat[] }) {
 
 const CDN = "https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react";
 
-function ItemIcon({ name, wr, count }: { name: string; wr: number; count: number }) {
+function ItemIcon({ name, count }: { name: string; count: number }) {
   const [ok, setOk] = useState(true);
   if (!ok) return null;
   return (
-    <div title={`${name} — ${wr}% побед (${count.toLocaleString()} матчей)`}
-      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
-      <div style={{
-        width: 44, height: 44,
-        border: `1px solid ${wr >= 50 ? "rgba(34,184,34,0.5)" : "rgba(200,168,75,0.3)"}`,
-        background: "#0a0e0a", overflow: "hidden", flexShrink: 0,
-      }}>
-        <img src={`${CDN}/items/${name}.png`} alt={name} width={44} height={44}
-          style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }}
-          onError={() => setOk(false)} />
-      </div>
-      <span className="mono" style={{
-        fontSize: 9, color: wr >= 52 ? "#3ab860" : wr >= 48 ? "#c8a84b" : "#8a6060",
-        letterSpacing: ".05em",
-      }}>{wr}%</span>
+    <div title={`${name} · ${count.toLocaleString()} матчей`}
+      style={{ width: 44, height: 44, border: "1px solid rgba(200,168,75,0.3)",
+        background: "#0a0e0a", overflow: "hidden", flexShrink: 0 }}>
+      <img src={`${CDN}/items/${name}.png`} alt={name} width={44} height={44}
+        style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }}
+        onError={() => setOk(false)} />
     </div>
   );
 }
@@ -288,11 +279,10 @@ export default function HeroPage() {
   const [search, setSearch] = useState("");
   const [showList, setShowList] = useState(false);
   const [stats, setStats] = useState<{
-    items: ItemStat[];
+    byPosition: Array<{ pos: string; items: ItemStat[] }>;
     positions: PosStat[];
     displayName: string;
     itemMap: Record<number, string>;
-    dominantPos: string | null;
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -330,17 +320,27 @@ export default function HeroPage() {
         const positions: PosStat[] = d1.data?.heroStats?.stats ?? [];
         const displayName = d1.data?.constants?.hero?.displayName ?? hero.displayName;
 
-        // Step 2: items filtered to dominant position
-        const dominantPos = [...positions].sort((a, b) => b.matchCount - a.matchCount)[0]?.position ?? null;
-        let items: ItemStat[] = [];
-        if (dominantPos) {
-          const d2 = await stratz(ITEMS_QUERY, { heroId: hero.id, positionIds: [dominantPos] });
-          if (d2?.errors) throw new Error(d2.errors[0]?.message ?? "GraphQL schema error");
-          if (d2?.error) throw new Error(d2.error);
-          items = d2.data?.heroStats?.itemFullPurchase ?? [];
-        }
+        // Step 2: items for top 2 positions (parallel)
+        const topPositions = [...positions]
+          .filter(p => p.matchCount >= 50)
+          .sort((a, b) => b.matchCount - a.matchCount)
+          .slice(0, 2)
+          .map(p => p.position);
 
-        setStats({ items, positions, displayName, itemMap, dominantPos });
+        const itemResults = await Promise.all(
+          topPositions.map(pos =>
+            stratz(ITEMS_QUERY, { heroId: hero.id, positionIds: [pos] })
+          )
+        );
+
+        const byPosition = topPositions.map((pos, i) => {
+          const r = itemResults[i];
+          if (r?.errors) throw new Error(r.errors[0]?.message ?? "GraphQL schema error");
+          if (r?.error) throw new Error(r.error);
+          return { pos, items: (r?.data?.heroStats?.itemFullPurchase ?? []) as ItemStat[] };
+        });
+
+        setStats({ byPosition, positions, displayName, itemMap });
       } catch (e: any) {
         setError(e.message ?? "Ошибка загрузки");
       } finally {
@@ -361,13 +361,21 @@ export default function HeroPage() {
     router.push(`/hero/${h.shortName}`);
   }
 
-  // Group items into phases (already filtered to dominant position by query)
-  function groupItems() {
-    const { items, itemMap, dominantPos } = stats!;
-    const valid = items.filter(s => {
+  // Deduplicate by itemId (Stratz returns same item across multiple time buckets), group into phases
+  function groupItems(items: ItemStat[]) {
+    const { itemMap } = stats!;
+    const deduped = new Map<number, ItemStat>();
+    for (const s of items) {
+      const ex = deduped.get(s.itemId);
+      if (ex) {
+        deduped.set(s.itemId, { itemId: s.itemId, matchCount: ex.matchCount + s.matchCount, winCount: ex.winCount + s.winCount });
+      } else {
+        deduped.set(s.itemId, { ...s });
+      }
+    }
+    const valid = Array.from(deduped.values()).filter(s => {
       const name = itemMap[s.itemId];
-      if (!name || name.startsWith("recipe_") || s.matchCount < 50) return false;
-      return true;
+      return name && !name.startsWith("recipe_") && s.matchCount >= 100;
     });
     const phases: ItemStat[][] = [[], [], [], []];
     for (const s of valid) {
@@ -378,7 +386,7 @@ export default function HeroPage() {
     for (const phase of phases) {
       phase.sort((a, b) => b.matchCount - a.matchCount);
     }
-    return { phases, dominantPos };
+    return phases;
   }
 
   // Overall win rate across all positions
@@ -391,7 +399,6 @@ export default function HeroPage() {
   }
 
   const wr = stats ? overallWr() : null;
-  const itemData = stats ? groupItems() : null;
 
   return (
     <>
@@ -591,46 +598,41 @@ export default function HeroPage() {
               </div>
             </div>
 
-            {/* Item build */}
-            <div className="panel" style={{ padding: "18px 20px 22px", position: "relative" }}>
-              <Corners />
-              <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 14 }}>
-                <div className="dota-label">СБОРКА ПРЕДМЕТОВ</div>
-                {itemData?.dominantPos && (
-                  <span className="mono" style={{ fontSize: 9, color: "var(--teal)", letterSpacing: ".2em" }}>
-                    {POS_LABELS[itemData.dominantPos] ?? itemData.dominantPos}
-                  </span>
-                )}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                {itemData!.phases.map((phase, idx) => {
-                  if (phase.length === 0) return null;
-                  return (
-                    <div key={idx}>
-                      <div className="mono" style={{
-                        fontSize: 10, color: "var(--text-mute)", letterSpacing: ".25em", marginBottom: 10,
-                      }}>
-                        {PHASE_LABELS[idx]}
-                      </div>
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        {phase.slice(0, 12).map(s => {
-                          const name = stats!.itemMap[s.itemId];
-                          if (!name) return null;
-                          return (
-                            <ItemIcon
-                              key={s.itemId}
-                              name={name}
-                              wr={Math.round((s.winCount / s.matchCount) * 100)}
-                              count={s.matchCount}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            {/* Item builds for top 2 positions */}
+            {stats.byPosition.map(({ pos, items }) => {
+              const phases = groupItems(items);
+              if (phases.every(p => p.length === 0)) return null;
+              return (
+                <div key={pos} className="panel" style={{ padding: "18px 20px 22px", position: "relative", marginBottom: 16 }}>
+                  <Corners />
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 14 }}>
+                    <div className="dota-label">СБОРКА ПРЕДМЕТОВ</div>
+                    <span className="mono" style={{ fontSize: 9, color: "var(--teal)", letterSpacing: ".2em" }}>
+                      {POS_LABELS[pos] ?? pos}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                    {phases.map((phase, idx) => {
+                      if (phase.length === 0) return null;
+                      return (
+                        <div key={idx}>
+                          <div className="mono" style={{ fontSize: 10, color: "var(--text-mute)", letterSpacing: ".25em", marginBottom: 10 }}>
+                            {PHASE_LABELS[idx]}
+                          </div>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            {phase.slice(0, 12).map(s => {
+                              const name = stats.itemMap[s.itemId];
+                              if (!name) return null;
+                              return <ItemIcon key={s.itemId} name={name} count={s.matchCount} />;
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </>
         )}
 
