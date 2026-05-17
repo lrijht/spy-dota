@@ -9,7 +9,6 @@ interface StratzHero {
   id: number;
   shortName: string;
   displayName: string;
-  stats: { primaryAttribute: string };
 }
 
 interface ItemStat {
@@ -93,17 +92,17 @@ const ATTR_LABEL: Record<string, string> = {
 
 /* ─── GraphQL helpers ────────────────────────────────────────────────────── */
 
-const HEROES_QUERY = `{ constants { heroes { id shortName displayName stats { primaryAttribute } } } }`;
+const HEROES_QUERY = `{ constants { heroes { id shortName displayName } } }`;
 
 const STATS_QUERY = `
 query HeroStats($heroId: Short!) {
   heroStats {
-    itemFullPurchase(heroId: $heroId, bracketBasicIds: LEGEND_ANCIENT) {
+    itemFullPurchase(heroId: $heroId, bracketBasicIds: [LEGEND_ANCIENT]) {
       item { id name }
       matchCount
       winCount
     }
-    laneOutcome(heroId: $heroId) {
+    laneOutcome(heroId: $heroId, bracketBasicIds: [LEGEND_ANCIENT]) {
       lane
       matchCount
       winCount
@@ -112,7 +111,6 @@ query HeroStats($heroId: Short!) {
   constants {
     hero(id: $heroId) {
       displayName
-      stats { primaryAttribute }
     }
   }
 }`;
@@ -280,13 +278,13 @@ export default function HeroPage() {
   const heroName = (params.name as string) ?? "";
 
   const [allHeroes, setAllHeroes] = useState<StratzHero[]>([]);
+  const [heroListError, setHeroListError] = useState("");
   const [search, setSearch] = useState("");
   const [showList, setShowList] = useState(false);
   const [stats, setStats] = useState<{
     items: ItemStat[];
     lanes: LaneStat[];
     displayName: string;
-    attr: string;
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -295,9 +293,12 @@ export default function HeroPage() {
   // Fetch all heroes from Stratz on mount
   useEffect(() => {
     stratz(HEROES_QUERY).then(data => {
+      if (data?.errors) { setHeroListError(`Stratz: ${data.errors[0]?.message ?? "schema error"}`); return; }
+      if (data?.error) { setHeroListError(data.error); return; }
       const heroes: StratzHero[] = data?.data?.constants?.heroes ?? [];
+      if (heroes.length === 0) { setHeroListError("Список героев пустой — проверь STRATZ_API_KEY в Vercel"); return; }
       setAllHeroes(heroes.sort((a, b) => a.displayName.localeCompare(b.displayName)));
-    }).catch(() => {});
+    }).catch((e: any) => setHeroListError(e.message ?? "Ошибка загрузки героев"));
   }, []);
 
   // Fetch stats when heroName or allHeroes changes
@@ -309,13 +310,14 @@ export default function HeroPage() {
     setError("");
     setStats(null);
     stratz(STATS_QUERY, { heroId: hero.id }).then(data => {
+      if (data?.errors) throw new Error(data.errors[0]?.message ?? "GraphQL schema error");
+      if (data?.error) throw new Error(data.error);
       const hd = data?.data;
-      if (!hd) throw new Error("Нет данных");
+      if (!hd?.heroStats) throw new Error("heroStats не вернул данных");
       setStats({
-        items: hd.heroStats?.itemFullPurchase ?? [],
-        lanes: hd.heroStats?.laneOutcome ?? [],
+        items: hd.heroStats.itemFullPurchase ?? [],
+        lanes: hd.heroStats.laneOutcome ?? [],
         displayName: hd.constants?.hero?.displayName ?? hero.displayName,
-        attr: hd.constants?.hero?.stats?.primaryAttribute ?? hero.stats?.primaryAttribute ?? "ALL",
       });
     }).catch((e: any) => {
       setError(e.message ?? "Ошибка загрузки");
@@ -385,6 +387,13 @@ export default function HeroPage() {
         <div className="panel" style={{ padding: "20px 24px", marginBottom: 20, position: "relative" }}>
           <Corners />
           <div className="dota-label" style={{ marginBottom: 8 }}>ВЫБОР ГЕРОЯ</div>
+          {heroListError && (
+            <div style={{ background: "rgba(163,37,30,0.15)", color: "#ff6b5e",
+              border: "1px solid #a3251e", padding: "8px 12px", fontSize: 12,
+              fontFamily: "monospace", marginBottom: 8 }}>
+              {heroListError}
+            </div>
+          )}
           <div style={{ position: "relative" }}>
             <input
               ref={searchRef}
@@ -393,10 +402,10 @@ export default function HeroPage() {
               onChange={e => { setSearch(e.target.value); setShowList(true); }}
               onFocus={() => { setSearch(""); setShowList(true); }}
               onBlur={() => setTimeout(() => setShowList(false), 150)}
-              placeholder="Поиск героя…"
+              placeholder={allHeroes.length === 0 && !heroListError ? "Загрузка героев…" : "Поиск героя…"}
               style={{ width: "100%", fontSize: 15 }}
             />
-            {showList && (
+            {showList && allHeroes.length > 0 && (
               <div style={{
                 position: "absolute", top: "100%", left: 0, right: 0, zIndex: 100,
                 background: "#0a0d12", border: "1px solid #2a2418",
@@ -412,15 +421,11 @@ export default function HeroPage() {
                       background: h.shortName === heroName ? "rgba(200,168,75,0.1)" : "transparent",
                     }}
                     onMouseDown={() => selectHero(h)}>
-                    <span style={{
-                      display: "inline-block", width: 8, height: 8, borderRadius: "50%",
-                      background: ATTR_COLOR[h.stats?.primaryAttribute] ?? "#888", flexShrink: 0,
-                    }} />
                     <span style={{ color: "var(--parchment)", fontSize: 14, fontFamily: "'Marcellus', serif" }}>
                       {h.displayName}
                     </span>
                     <span className="mono" style={{ fontSize: 9, color: "var(--text-mute)", marginLeft: "auto" }}>
-                      {ATTR_LABEL[h.stats?.primaryAttribute] ?? ""}
+                      {h.shortName}
                     </span>
                   </div>
                 ))}
@@ -464,13 +469,7 @@ export default function HeroPage() {
                   <div className="display heading-gold" style={{ fontSize: "clamp(1.4rem, 4vw, 2.2rem)", lineHeight: 1 }}>
                     {stats.displayName}
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6 }}>
-                    <span className="mono" style={{
-                      fontSize: 11, color: ATTR_COLOR[stats.attr] ?? "#888",
-                      letterSpacing: ".2em",
-                    }}>
-                      {ATTR_LABEL[stats.attr] ?? stats.attr}
-                    </span>
+                  <div style={{ marginTop: 6 }}>
                     <span className="mono" style={{ fontSize: 10, color: "var(--text-mute)", letterSpacing: ".15em" }}>
                       {selected.shortName}
                     </span>
