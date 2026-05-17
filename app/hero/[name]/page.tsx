@@ -265,7 +265,7 @@ export default function HeroPage() {
       const aMap: Record<string, string[]> = {};
       for (const [key, data] of Object.entries(abilitiesConst as Record<string, any>)) {
         aMap[key] = ((data as any).abilities ?? []).filter(
-          (a: string) => !a.startsWith("special_bonus_") && !a.startsWith("generic_")
+          (a: unknown) => typeof a === "string" && !a.startsWith("special_bonus_") && !a.startsWith("generic_")
         );
       }
       setHeroAbilities(aMap);
