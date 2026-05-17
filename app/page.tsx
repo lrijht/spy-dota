@@ -130,7 +130,7 @@ export default function Home() {
                 {"// 2 РЕЖИМА · ГОЛОСОВАНИЕ · ПРОСТОЙ"}
               </div>
               <a href="/hero" className="dota-btn sm" style={{ textDecoration: "none", fontSize: 10, letterSpacing: ".15em" }}>
-                📊 ГЕРОИ
+                ✦ HERO CODEX
               </a>
             </div>
           </div>
