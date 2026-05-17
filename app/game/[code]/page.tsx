@@ -52,6 +52,30 @@ function heroIconUrl(heroId: string): string {
   return `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/${name}_icon.png`;
 }
 
+function HeroIcon({ heroId, heroName }: { heroId: string; heroName: string }) {
+  const [visible, setVisible] = useState(true);
+  if (!visible) return null;
+  return (
+    <div style={{
+      width: 80, height: 80,
+      border: "1px solid rgba(200,168,75,0.5)",
+      boxShadow: "0 0 20px rgba(200,168,75,0.2), inset 0 0 0 1px rgba(0,0,0,0.6)",
+      overflow: "hidden",
+      background: "rgba(0,0,0,0.4)",
+      flexShrink: 0,
+    }}>
+      <img
+        src={heroIconUrl(heroId)}
+        alt={heroName}
+        width={80}
+        height={80}
+        style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }}
+        onError={() => setVisible(false)}
+      />
+    </div>
+  );
+}
+
 function SpyDotaCrest({ size = 36 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none"
@@ -353,24 +377,8 @@ export default function GamePage() {
               ) : (
                 <>
                   <div className="mono" style={{ fontSize: 10, color: "var(--text-mute)", letterSpacing: ".4em", marginBottom: 14 }}>ТВОЙ ГЕРОЙ</div>
-                  {/* Hero icon from Valve CDN */}
                   <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
-                    <div style={{
-                      width: 80, height: 80,
-                      border: "1px solid rgba(200,168,75,0.5)",
-                      boxShadow: "0 0 20px rgba(200,168,75,0.2), inset 0 0 0 1px rgba(0,0,0,0.6)",
-                      overflow: "hidden",
-                      background: "rgba(0,0,0,0.4)",
-                    }}>
-                      <img
-                        src={heroIconUrl(assigned.heroId)}
-                        alt={assigned.heroName}
-                        width={80}
-                        height={80}
-                        style={{ display: "block", width: "100%", height: "100%", objectFit: "cover" }}
-                        onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                      />
-                    </div>
+                    <HeroIcon heroId={assigned.heroId} heroName={assigned.heroName} />
                   </div>
                   <div className="display heading-gold" style={{ fontSize: 32, letterSpacing: ".15em", marginBottom: 8 }}>
                     {assigned.heroName.toUpperCase()}
