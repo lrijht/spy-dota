@@ -12,7 +12,7 @@ interface StratzHero {
 }
 
 interface ItemStat {
-  item: { id: number; name: string } | null;
+  itemId: number;
   matchCount: number;
   winCount: number;
 }
@@ -98,7 +98,7 @@ const STATS_QUERY = `
 query HeroStats($heroId: Short!) {
   heroStats {
     itemFullPurchase(heroId: $heroId, bracketBasicIds: [LEGEND_ANCIENT]) {
-      item { id name }
+      itemId
       matchCount
       winCount
     }
@@ -111,6 +111,10 @@ query HeroStats($heroId: Short!) {
   constants {
     hero(id: $heroId) {
       displayName
+    }
+    items {
+      id
+      shortName
     }
   }
 }`;
@@ -288,6 +292,7 @@ export default function HeroPage() {
     items: ItemStat[];
     lanes: LaneStat[];
     displayName: string;
+    itemMap: Record<number, string>;
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -317,10 +322,15 @@ export default function HeroPage() {
       if (data?.error) throw new Error(data.error);
       const hd = data?.data;
       if (!hd?.heroStats) throw new Error("heroStats не вернул данных");
+      const itemMap: Record<number, string> = {};
+      for (const it of (hd.constants?.items ?? [])) {
+        if (it.id && it.shortName) itemMap[it.id] = it.shortName;
+      }
       setStats({
         items: hd.heroStats.itemFullPurchase ?? [],
         lanes: hd.heroStats.laneOutcome ?? [],
         displayName: hd.constants?.hero?.displayName ?? hero.displayName,
+        itemMap,
       });
     }).catch((e: any) => {
       setError(e.message ?? "Ошибка загрузки");
@@ -341,13 +351,17 @@ export default function HeroPage() {
 
   // Group items into phases
   function groupItems() {
-    const valid = stats!.items.filter(s => s.item && !s.item.name.startsWith("recipe_") && s.matchCount > 100);
+    const { items, itemMap } = stats!;
+    const valid = items.filter(s => {
+      const name = itemMap[s.itemId];
+      return name && !name.startsWith("recipe_") && s.matchCount > 100;
+    });
     const phases: ItemStat[][] = [[], [], [], []];
     for (const s of valid) {
-      const phase = ITEM_PHASE[s.item!.name] ?? 2;
+      const name = itemMap[s.itemId] ?? "";
+      const phase = ITEM_PHASE[name] ?? 2;
       phases[phase].push(s);
     }
-    // Sort each phase by win rate desc, then match count desc
     for (const phase of phases) {
       phase.sort((a, b) => {
         const awr = a.winCount / a.matchCount;
@@ -587,14 +601,18 @@ export default function HeroPage() {
                         {PHASE_LABELS[idx]}
                       </div>
                       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                        {phase.slice(0, 12).map(s => (
-                          <ItemIcon
-                            key={s.item!.name}
-                            name={s.item!.name}
-                            wr={Math.round((s.winCount / s.matchCount) * 100)}
-                            count={s.matchCount}
-                          />
-                        ))}
+                        {phase.slice(0, 12).map(s => {
+                          const name = stats!.itemMap[s.itemId];
+                          if (!name) return null;
+                          return (
+                            <ItemIcon
+                              key={s.itemId}
+                              name={name}
+                              wr={Math.round((s.winCount / s.matchCount) * 100)}
+                              count={s.matchCount}
+                            />
+                          );
+                        })}
                       </div>
                     </div>
                   );
