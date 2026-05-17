@@ -17,8 +17,8 @@ interface ItemStat {
   winCount: number;
 }
 
-interface LaneStat {
-  lane: string;
+interface PosStat {
+  position: string;  // POSITION_1 .. POSITION_5
   matchCount: number;
   winCount: number;
 }
@@ -68,12 +68,12 @@ const ITEM_PHASE: Record<string, number> = {
 };
 
 const PHASE_LABELS = ["Стартовые предметы", "Ранняя игра", "Середина игры", "Поздняя игра"];
-const LANE_LABELS: Record<string, string> = {
-  SAFE_LANE: "Лёгкая линия",
-  MID_LANE: "Середина",
-  OFF_LANE: "Сложная линия",
-  JUNGLE: "Лес",
-  ROAMING: "Роумер",
+const POS_LABELS: Record<string, string> = {
+  POSITION_1: "Кэрри",
+  POSITION_2: "Мид",
+  POSITION_3: "Офлейн",
+  POSITION_4: "Поддержка 4",
+  POSITION_5: "Поддержка 5",
 };
 
 const ATTR_COLOR: Record<string, string> = {
@@ -102,8 +102,8 @@ query HeroStats($heroId: Short!) {
       matchCount
       winCount
     }
-    laneOutcome(heroId: $heroId, bracketBasicIds: [LEGEND_ANCIENT]) {
-      lane
+    stats(heroIds: [$heroId], bracketBasicIds: [LEGEND_ANCIENT], groupByPosition: true) {
+      position
       matchCount
       winCount
     }
@@ -165,17 +165,17 @@ function laneColor(wr: number | null) {
   return "#8a2020";
 }
 
-function LaneMap({ lanes }: { lanes: LaneStat[] }) {
-  function stat(name: string) {
-    const s = lanes.find(l => l.lane === name);
-    if (!s || s.matchCount < 200) return null;
+function LaneMap({ positions }: { positions: PosStat[] }) {
+  function wr(pos: string) {
+    const s = positions.find(p => p.position === pos);
+    if (!s || s.matchCount < 50) return null;
     return Math.round((s.winCount / s.matchCount) * 100);
   }
 
-  const safe = stat("SAFE_LANE");
-  const mid = stat("MID_LANE");
-  const off = stat("OFF_LANE");
-  const jungle = stat("JUNGLE");
+  const safe = wr("POSITION_1");   // carry
+  const mid  = wr("POSITION_2");   // mid
+  const off  = wr("POSITION_3");   // offlane
+  const jungle = wr("POSITION_4"); // soft support / jungle
 
   return (
     <svg viewBox="0 0 200 200" width={190} height={190}
@@ -290,7 +290,7 @@ export default function HeroPage() {
   const [showList, setShowList] = useState(false);
   const [stats, setStats] = useState<{
     items: ItemStat[];
-    lanes: LaneStat[];
+    positions: PosStat[];
     displayName: string;
     itemMap: Record<number, string>;
   } | null>(null);
@@ -328,7 +328,7 @@ export default function HeroPage() {
       }
       setStats({
         items: hd.heroStats.itemFullPurchase ?? [],
-        lanes: hd.heroStats.laneOutcome ?? [],
+        positions: hd.heroStats.stats ?? [],
         displayName: hd.constants?.hero?.displayName ?? hero.displayName,
         itemMap,
       });
@@ -372,11 +372,11 @@ export default function HeroPage() {
     return phases;
   }
 
-  // Overall win rate from lanes
+  // Overall win rate across all positions
   function overallWr() {
     if (!stats) return null;
-    const total = stats.lanes.reduce((a, l) => a + l.matchCount, 0);
-    const wins = stats.lanes.reduce((a, l) => a + l.winCount, 0);
+    const total = stats.positions.reduce((a, p) => a + p.matchCount, 0);
+    const wins = stats.positions.reduce((a, p) => a + p.winCount, 0);
     if (total < 100) return null;
     return { wr: Math.round((wins / total) * 100), total };
   }
@@ -501,21 +501,18 @@ export default function HeroPage() {
               <div className="panel" style={{ padding: "18px 20px", flex: "0 0 auto", position: "relative" }}>
                 <Corners />
                 <div className="dota-label" style={{ marginBottom: 10 }}>ПОЗИЦИЯ НА КАРТЕ</div>
-                <LaneMap lanes={stats.lanes} />
+                <LaneMap positions={stats.positions} />
                 {/* Legend */}
                 <div style={{ display: "flex", gap: 12, marginTop: 10, flexWrap: "wrap" }}>
-                  {[
-                    { lane: "SAFE_LANE" }, { lane: "MID_LANE" },
-                    { lane: "OFF_LANE" }, { lane: "JUNGLE" },
-                  ].map(({ lane }) => {
-                    const s = stats.lanes.find(l => l.lane === lane);
-                    if (!s || s.matchCount < 200) return null;
+                  {(["POSITION_1","POSITION_2","POSITION_3","POSITION_4"] as const).map(pos => {
+                    const s = stats.positions.find(p => p.position === pos);
+                    if (!s || s.matchCount < 50) return null;
                     const wr = Math.round((s.winCount / s.matchCount) * 100);
                     return (
-                      <div key={lane} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div key={pos} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ display: "inline-block", width: 10, height: 10, background: laneColor(wr) }} />
                         <span className="mono" style={{ fontSize: 9, color: "var(--text-mute)" }}>
-                          {LANE_LABELS[lane]}
+                          {POS_LABELS[pos]}
                         </span>
                       </div>
                     );
@@ -554,28 +551,28 @@ export default function HeroPage() {
                   <span className="line" /><span className="glyph">◆</span><span className="line" />
                 </div>
 
-                {/* Lane breakdown */}
+                {/* Position breakdown */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {stats.lanes
-                    .filter(l => l.matchCount >= 200)
+                  {stats.positions
+                    .filter(p => p.matchCount >= 50)
                     .sort((a, b) => b.matchCount - a.matchCount)
-                    .map(l => {
-                      const lwr = Math.round((l.winCount / l.matchCount) * 100);
+                    .map(p => {
+                      const pwr = Math.round((p.winCount / p.matchCount) * 100);
                       return (
-                        <div key={l.lane}>
+                        <div key={p.position}>
                           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
                             <span style={{ color: "var(--text)", fontSize: 12, fontFamily: "'Marcellus', serif" }}>
-                              {LANE_LABELS[l.lane] ?? l.lane}
+                              {POS_LABELS[p.position] ?? p.position}
                             </span>
-                            <span className="mono" style={{ fontSize: 11, color: lwr >= 50 ? "#3ab860" : "#c8a84b" }}>
-                              {lwr}%
+                            <span className="mono" style={{ fontSize: 11, color: pwr >= 50 ? "#3ab860" : "#c8a84b" }}>
+                              {pwr}%
                             </span>
                           </div>
                           <div style={{ height: 4, background: "#1a1412" }}>
                             <div style={{
                               height: "100%",
-                              width: `${lwr}%`,
-                              background: lwr >= 52 ? "#22b822" : lwr >= 48 ? "#c8a84b" : "#8a2020",
+                              width: `${pwr}%`,
+                              background: pwr >= 52 ? "#22b822" : pwr >= 48 ? "#c8a84b" : "#8a2020",
                             }} />
                           </div>
                         </div>
