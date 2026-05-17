@@ -49,7 +49,7 @@ const CDN_OVERRIDES: Record<string, string> = {
 
 function heroIconUrl(heroId: string): string {
   const name = CDN_OVERRIDES[heroId] ?? heroId;
-  return `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/${name}_icon.png`;
+  return `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/${name}.png`;
 }
 
 function HeroIcon({ heroId, heroName }: { heroId: string; heroName: string }) {
