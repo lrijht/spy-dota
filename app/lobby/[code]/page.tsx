@@ -92,6 +92,17 @@ export default function LobbyPage() {
       if (data.kickedId === id) { alert("Тебя кикнули из лобби"); router.push("/"); }
     });
     channel.bind("game-started", () => { router.push(`/game/${code}`); });
+    channel.bind("game-restarted", () => {
+      fetch(`/api/lobby/state?code=${code}`)
+        .then(r => r.json())
+        .then(data => {
+          if (!data.error) {
+            setPlayers(data.players);
+            setMode(data.mode);
+            setRounds(data.rounds || 3);
+          }
+        });
+    });
 
     return () => { channel.unbind_all(); pusher.unsubscribe(`lobby-${code}`); };
   }, [code, router]);

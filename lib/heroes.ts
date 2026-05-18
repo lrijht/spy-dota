@@ -111,3 +111,13 @@ export function getRandomHeroes(count: number): Hero[] {
   const shuffled = [...UNIQUE_HEROES].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count);
 }
+
+export const RANGED_HERO_NAMES = new Set([
+  "Crystal Maiden", "Drow Ranger", "Mirana", "Morphling", "Shadow Fiend",
+  "Puck", "Razor", "Storm Spirit", "Tinker", "Vengeful Spirit", "Windranger",
+  "Witch Doctor", "Lich", "Lion", "Shadow Shaman", "Enigma", "Nature's Prophet",
+  "Necrophos", "Queen of Pain", "Ancient Apparition", "Clinkz", "Enchantress",
+  "Huskar", "Weaver", "Jakiro", "Batrider", "Chen", "Gyrocopter", "Invoker",
+  "Silencer", "Outworld Destroyer", "Medusa", "Troll Warlord", "Techies",
+  "Phoenix", "Oracle", "Winter Wyvern", "Arc Warden", "Dazzle", "Leshrac", "Warlock",
+]);

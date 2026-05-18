@@ -113,5 +113,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  if (action === "restart-game") {
+    if (lobby.hostId !== playerId) return NextResponse.json({ error: "Not host" }, { status: 403 });
+    const resetPlayers = lobby.players.map(p => ({
+      ...p,
+      heroId: null,
+      heroName: null,
+      isSpy: false,
+      hint: null,
+      hasAnswered: false,
+      votes: 0,
+      answers: [],
+    }));
+    await updateLobby(code, {
+      status: "waiting",
+      currentRound: 1,
+      roundVotes: {},
+      votingOpen: false,
+      players: resetPlayers,
+    });
+    await pusherServer.trigger(`lobby-${code}`, "game-restarted", {});
+    return NextResponse.json({ ok: true });
+  }
+
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });
 }

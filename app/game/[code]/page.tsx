@@ -2,6 +2,8 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getPusherClient } from "@/lib/pusher";
+import { UNIQUE_HEROES, RANGED_HERO_NAMES } from "@/lib/heroes";
+import type { Hero } from "@/lib/heroes";
 
 interface PlayerState { id: string; name: string; isHost: boolean; hasAnswered: boolean; votes: number; }
 interface GameAssigned { heroId: string; heroName: string; isSpy: boolean; hint: string | null; }
@@ -97,6 +99,197 @@ function SpyDotaCrest({ size = 36 }: { size?: number }) {
   );
 }
 
+const HERO_ATTRS = [
+  { key: "str" as const, label: "СИЛА", color: "#e05a5a", rgb: "224,90,90" },
+  { key: "agi" as const, label: "ЛОВКОСТЬ", color: "#50c878", rgb: "80,200,120" },
+  { key: "int" as const, label: "ИНТЕЛЛЕКТ", color: "#5090e0", rgb: "80,144,224" },
+  { key: "univ" as const, label: "УНИВЕРСАЛ", color: "#c8a84b", rgb: "200,168,75" },
+];
+
+function SpyHeroTable() {
+  const [open, setOpen] = useState(false);
+  const [attackFilter, setAttackFilter] = useState<"all" | "melee" | "ranged">("all");
+  const [crossed, setCrossed] = useState<Set<string>>(new Set());
+
+  function toggle(id: string) {
+    setCrossed(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function getFiltered(attrKey: string): Hero[] {
+    return UNIQUE_HEROES.filter(h => {
+      if (h.attr !== attrKey) return false;
+      if (attackFilter === "melee") return !RANGED_HERO_NAMES.has(h.name);
+      if (attackFilter === "ranged") return RANGED_HERO_NAMES.has(h.name);
+      return true;
+    });
+  }
+
+  function toggleAttr(attrKey: string) {
+    const heroes = getFiltered(attrKey);
+    const allCrossed = heroes.every(h => crossed.has(h.id));
+    setCrossed(prev => {
+      const next = new Set(prev);
+      if (allCrossed) heroes.forEach(h => next.delete(h.id));
+      else heroes.forEach(h => next.add(h.id));
+      return next;
+    });
+  }
+
+  const totalCrossed = UNIQUE_HEROES.filter(h => crossed.has(h.id)).length;
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: "100%", padding: "11px 16px",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          background: "rgba(163,37,30,0.08)",
+          border: "1px solid rgba(163,37,30,0.35)",
+          cursor: "pointer",
+        }}
+      >
+        <span style={{ fontFamily: "'Cinzel', serif", fontSize: 11, letterSpacing: ".2em", color: "#ff8b7e" }}>
+          🔍 ЗАПИСНАЯ КНИЖКА
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {totalCrossed > 0 && (
+            <span className="mono" style={{ fontSize: 10, color: "rgba(255,107,94,0.7)", letterSpacing: ".1em" }}>
+              ✕{totalCrossed}/{UNIQUE_HEROES.length}
+            </span>
+          )}
+          <span style={{ color: "#ff8b7e", fontSize: 11 }}>{open ? "▲" : "▼"}</span>
+        </span>
+      </button>
+
+      {open && (
+        <div style={{
+          padding: "12px",
+          border: "1px solid rgba(163,37,30,0.25)",
+          borderTop: "none",
+          background: "rgba(8,3,3,0.9)",
+        }}>
+          {/* Filter bar */}
+          <div style={{ display: "flex", gap: 5, marginBottom: 12, alignItems: "center" }}>
+            {(["all", "melee", "ranged"] as const).map(f => (
+              <button key={f} onClick={() => setAttackFilter(f)} style={{
+                padding: "5px 10px",
+                background: attackFilter === f ? "rgba(163,37,30,0.3)" : "rgba(255,255,255,0.03)",
+                border: `1px solid ${attackFilter === f ? "#a3251e" : "#1c2530"}`,
+                cursor: "pointer",
+                fontFamily: "'Cinzel', serif", fontSize: 9, letterSpacing: ".12em",
+                color: attackFilter === f ? "#ff8b7e" : "var(--text-dim)",
+              }}>
+                {f === "all" ? "ВСЕ" : f === "melee" ? "⚔ БЛИЖНИК" : "🏹 ДАЛЬНИК"}
+              </button>
+            ))}
+            <button
+              onClick={() => setCrossed(new Set())}
+              style={{
+                marginLeft: "auto", padding: "5px 9px",
+                background: "rgba(255,255,255,0.02)",
+                border: "1px solid #1c2530",
+                cursor: "pointer",
+                fontFamily: "'Cinzel', serif", fontSize: 9, letterSpacing: ".1em",
+                color: "var(--text-mute)",
+              }}
+            >
+              СБРОС
+            </button>
+          </div>
+
+          {/* Attr groups */}
+          {HERO_ATTRS.map(attr => {
+            const heroes = getFiltered(attr.key);
+            if (heroes.length === 0) return null;
+            const allCrossed = heroes.every(h => crossed.has(h.id));
+            return (
+              <div key={attr.key} style={{ marginBottom: 12 }}>
+                {/* Attr header */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span style={{
+                    fontFamily: "'Cinzel', serif", fontSize: 10, letterSpacing: ".18em",
+                    color: allCrossed ? "rgba(255,107,94,0.3)" : attr.color,
+                    textDecoration: allCrossed ? "line-through" : "none",
+                  }}>
+                    {attr.label}
+                    <span className="mono" style={{ marginLeft: 6, fontSize: 9, opacity: 0.6 }}>
+                      {heroes.filter(h => crossed.has(h.id)).length}/{heroes.length}
+                    </span>
+                  </span>
+                  <button onClick={() => toggleAttr(attr.key)} style={{
+                    padding: "2px 8px",
+                    background: allCrossed ? "rgba(163,37,30,0.25)" : `rgba(${attr.rgb},0.08)`,
+                    border: `1px solid ${allCrossed ? "#a3251e" : `rgba(${attr.rgb},0.35)`}`,
+                    cursor: "pointer",
+                    fontFamily: "'Cinzel', serif", fontSize: 9, letterSpacing: ".1em",
+                    color: allCrossed ? "#ff6b5e" : attr.color,
+                  }}>
+                    {allCrossed ? "↺ ВЕРНУТЬ" : "✕ ВСЕХ"}
+                  </button>
+                </div>
+
+                {/* Hero chips */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 3 }}>
+                  {heroes.map(hero => {
+                    const isCrossed = crossed.has(hero.id);
+                    const isRanged = RANGED_HERO_NAMES.has(hero.name);
+                    return (
+                      <button
+                        key={hero.id}
+                        onClick={() => toggle(hero.id)}
+                        title={hero.name}
+                        style={{
+                          padding: "5px 7px",
+                          background: isCrossed
+                            ? "rgba(163,37,30,0.06)"
+                            : `rgba(${attr.rgb},0.07)`,
+                          border: `1px solid ${isCrossed ? "rgba(163,37,30,0.18)" : `rgba(${attr.rgb},0.22)`}`,
+                          cursor: "pointer",
+                          textAlign: "left",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                          overflow: "hidden",
+                          transition: "opacity .12s ease",
+                        }}
+                      >
+                        <span style={{
+                          fontSize: 9, flexShrink: 0,
+                          opacity: isCrossed ? 0.25 : 0.7,
+                        }}>
+                          {isRanged ? "🏹" : "⚔"}
+                        </span>
+                        <span style={{
+                          fontFamily: "'Cinzel', serif",
+                          fontSize: 10,
+                          letterSpacing: ".04em",
+                          color: isCrossed ? "rgba(255,107,94,0.25)" : attr.color,
+                          textDecoration: isCrossed ? "line-through" : "none",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          opacity: isCrossed ? 0.45 : 1,
+                        }}>
+                          {hero.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function GamePage() {
   const { code } = useParams<{ code: string }>();
   const router = useRouter();
@@ -159,6 +352,7 @@ export default function GamePage() {
     });
     lobbyChannel.bind("spy-revealed", (data: RevealData) => { setRevealed(data); });
     lobbyChannel.bind("game-finished", () => { setGameOver(true); });
+    lobbyChannel.bind("game-restarted", () => { router.push(`/lobby/${code}`); });
     lobbyChannel.bind("player-kicked", (data: { kickedId: string; players: PlayerState[] }) => {
       setPlayers(data.players);
       if (data.kickedId === id) { alert("Тебя кикнули"); router.push("/"); }
@@ -249,8 +443,26 @@ export default function GamePage() {
               ))}
             </div>
 
-            <button className="dota-btn primary" style={{ width: "100%", padding: "16px" }} onClick={() => router.push("/")}>
-              ⚔ НА ГЛАВНУЮ
+            {isHost ? (
+              <button
+                className="dota-btn primary"
+                style={{ width: "100%", padding: "16px", marginBottom: 10 }}
+                onClick={async () => {
+                  await fetch("/api/game/action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, playerId: myId, action: "restart-game" }) });
+                }}
+              >
+                🔄 ПЕРЕИГРАТЬ ТОТ ЖЕ СОСТАВ
+              </button>
+            ) : (
+              <div className="panel" style={{ padding: "14px 18px", marginBottom: 10, textAlign: "center", position: "relative" }}>
+                <Corners />
+                <span style={{ fontFamily: "'Marcellus', serif", fontStyle: "italic", color: "var(--text-dim)", fontSize: 14 }}>
+                  ⏳ Ждём хоста…
+                </span>
+              </div>
+            )}
+            <button className="dota-btn" style={{ width: "100%", padding: "14px" }} onClick={() => router.push("/")}>
+              НА ГЛАВНУЮ
             </button>
           </div>
         </main>
@@ -424,6 +636,9 @@ export default function GamePage() {
               )}
             </div>
           )}
+
+          {/* Spy notebook — visible only to the spy */}
+          {assigned?.isSpy && <SpyHeroTable />}
 
           {/* VOTE MODE — players + recording */}
           {mode === "vote" && !votingOpen && (
