@@ -21,7 +21,8 @@ const CDN_OVERRIDES: Record<string, string> = {
   "keeper_of_the_light": "keeper_of_the_light",
 };
 
-function heroIconUrl(heroId: string): string {
+function heroIconUrl(heroId: string | null | undefined): string | null {
+  if (!heroId) return null;
   const key = heroId.toLowerCase().replace(/[\s']/g, "_").replace(/-/g, "_");
   const name = CDN_OVERRIDES[key] ?? key;
   return `https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/${name}_icon.png`;
@@ -284,10 +285,11 @@ export default function SpyHintChat({ isSpy }: { isSpy: boolean }) {
 
 function CandidateRow({ candidate, rank }: { candidate: Candidate; rank: number }) {
   const [imgErr, setImgErr] = useState(false);
-  const pct = Math.min(100, Math.round(candidate.confidence * 100));
+  const pct = Math.min(100, Math.round((candidate?.confidence ?? 0) * 100));
   const barColor = ["#c8a84b", "#7a8fa0", "#506070"][rank] ?? "#506070";
   const borderColor = rank === 0 ? "rgba(200,168,75,0.22)" : "#1c2530";
   const bgColor = rank === 0 ? "rgba(200,168,75,0.05)" : "rgba(255,255,255,0.02)";
+  const portraitUrl = heroIconUrl(candidate?.hero);
 
   return (
     <div style={{
@@ -296,10 +298,10 @@ function CandidateRow({ candidate, rank }: { candidate: Candidate; rank: number 
       background: bgColor,
       border: `1px solid ${borderColor}`,
     }}>
-      {!imgErr ? (
+      {portraitUrl && !imgErr ? (
         <img
-          src={heroIconUrl(candidate.hero)}
-          alt={candidate.name}
+          src={portraitUrl}
+          alt={candidate?.name ?? ""}
           width={32} height={18}
           style={{ objectFit: "cover", flexShrink: 0, display: "block" }}
           onError={() => setImgErr(true)}
@@ -307,8 +309,8 @@ function CandidateRow({ candidate, rank }: { candidate: Candidate; rank: number 
       ) : (
         <div style={{
           width: 32, height: 18, flexShrink: 0,
-          background: "rgba(200,168,75,0.08)",
-          border: "1px solid rgba(200,168,75,0.15)",
+          background: "rgba(255,255,255,0.06)",
+          border: "1px solid #1c2530",
         }} />
       )}
 
@@ -320,7 +322,7 @@ function CandidateRow({ candidate, rank }: { candidate: Candidate; rank: number 
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
           marginBottom: 3,
         }}>
-          {candidate.name}
+          {candidate?.name ?? "—"}
         </div>
         <div style={{
           height: 2, background: "rgba(255,255,255,0.06)",
@@ -347,7 +349,8 @@ function CandidateRow({ candidate, rank }: { candidate: Candidate; rank: number 
 
 function NarrowCard({ result }: { result: NarrowResult }) {
   const [imgErr, setImgErr] = useState(false);
-  const pct = result.confidence != null
+  const portraitUrl = heroIconUrl(result?.hero);
+  const pct = typeof result?.confidence === "number"
     ? Math.min(100, Math.round(result.confidence * 100))
     : null;
 
@@ -364,10 +367,10 @@ function NarrowCard({ result }: { result: NarrowResult }) {
       }}>
         ФИНАЛЬНЫЙ ОТВЕТ
       </div>
-      {!imgErr && (
+      {portraitUrl && !imgErr ? (
         <img
-          src={heroIconUrl(result.hero)}
-          alt={result.name}
+          src={portraitUrl}
+          alt={result?.name ?? ""}
           width={64} height={36}
           style={{
             objectFit: "cover", display: "block",
@@ -376,12 +379,19 @@ function NarrowCard({ result }: { result: NarrowResult }) {
           }}
           onError={() => setImgErr(true)}
         />
+      ) : (
+        <div style={{
+          width: 64, height: 36,
+          margin: "0 auto 8px",
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(163,37,30,0.3)",
+        }} />
       )}
       <div style={{
         fontFamily: "'Cinzel', serif", fontSize: 17,
         color: "var(--gold-bright)", letterSpacing: ".1em",
       }}>
-        {result.name}
+        {result?.name ?? "—"}
       </div>
       {pct != null && (
         <div className="mono" style={{
