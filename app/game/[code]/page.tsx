@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { getPusherClient } from "@/lib/pusher";
 import { UNIQUE_HEROES, RANGED_HERO_NAMES } from "@/lib/heroes";
 import type { Hero } from "@/lib/heroes";
+import SpyHintChat from "@/components/SpyHintChat";
 
 interface PlayerState { id: string; name: string; isHost: boolean; hasAnswered: boolean; votes: number; }
 interface GameAssigned { heroId: string; heroName: string; isSpy: boolean; hint: string | null; }
@@ -818,6 +819,7 @@ export default function GamePage() {
 
         </div>
       </main>
+      <SpyHintChat isSpy={assigned?.isSpy === true} />
     </>
   );
 }
