@@ -29,8 +29,8 @@ function heroIconUrl(heroId: string | null | undefined): string | null {
 }
 
 interface Candidate {
-  hero: string;
-  name: string;
+  hero_name: string;
+  display_name: string;
   confidence: number;
 }
 
@@ -40,8 +40,8 @@ interface ClueResult {
 }
 
 interface NarrowResult {
-  hero: string;
-  name: string;
+  hero_name: string;
+  display_name: string;
   confidence?: number;
 }
 
@@ -289,7 +289,7 @@ function CandidateRow({ candidate, rank }: { candidate: Candidate; rank: number 
   const barColor = ["#c8a84b", "#7a8fa0", "#506070"][rank] ?? "#506070";
   const borderColor = rank === 0 ? "rgba(200,168,75,0.22)" : "#1c2530";
   const bgColor = rank === 0 ? "rgba(200,168,75,0.05)" : "rgba(255,255,255,0.02)";
-  const portraitUrl = heroIconUrl(candidate?.hero);
+  const portraitUrl = heroIconUrl(candidate?.hero_name);
 
   return (
     <div style={{
@@ -301,7 +301,7 @@ function CandidateRow({ candidate, rank }: { candidate: Candidate; rank: number 
       {portraitUrl && !imgErr ? (
         <img
           src={portraitUrl}
-          alt={candidate?.name ?? ""}
+          alt={candidate?.display_name ?? ""}
           width={32} height={18}
           style={{ objectFit: "cover", flexShrink: 0, display: "block" }}
           onError={() => setImgErr(true)}
@@ -322,7 +322,7 @@ function CandidateRow({ candidate, rank }: { candidate: Candidate; rank: number 
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
           marginBottom: 3,
         }}>
-          {candidate?.name ?? "—"}
+          {candidate?.display_name ?? "—"}
         </div>
         <div style={{
           height: 2, background: "rgba(255,255,255,0.06)",
@@ -349,7 +349,7 @@ function CandidateRow({ candidate, rank }: { candidate: Candidate; rank: number 
 
 function NarrowCard({ result }: { result: NarrowResult }) {
   const [imgErr, setImgErr] = useState(false);
-  const portraitUrl = heroIconUrl(result?.hero);
+  const portraitUrl = heroIconUrl(result?.hero_name);
   const pct = typeof result?.confidence === "number"
     ? Math.min(100, Math.round(result.confidence * 100))
     : null;
@@ -370,7 +370,7 @@ function NarrowCard({ result }: { result: NarrowResult }) {
       {portraitUrl && !imgErr ? (
         <img
           src={portraitUrl}
-          alt={result?.name ?? ""}
+          alt={result?.display_name ?? ""}
           width={64} height={36}
           style={{
             objectFit: "cover", display: "block",
@@ -391,7 +391,7 @@ function NarrowCard({ result }: { result: NarrowResult }) {
         fontFamily: "'Cinzel', serif", fontSize: 17,
         color: "var(--gold-bright)", letterSpacing: ".1em",
       }}>
-        {result?.name ?? "—"}
+        {result?.display_name ?? "—"}
       </div>
       {pct != null && (
         <div className="mono" style={{

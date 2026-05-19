@@ -18,12 +18,11 @@ export async function POST(req: NextRequest) {
     });
     const data = await res.json();
 
-    // FastAPI may return { hero: { name, display_name }, confidence }
-    // or { results: [{ hero: { name, display_name }, score }] } (take first)
-    const raw = Array.isArray(data.results) ? data.results[0] : data;
+    // Railway shape: { candidates: [{ hero_name, display_name, score }] } — take first
+    const raw = Array.isArray(data.candidates) ? data.candidates[0] : data;
     const normalized = {
-      hero: stripHeroPrefix(raw?.hero?.name ?? raw?.hero),
-      name: raw?.hero?.display_name ?? raw?.hero?.name ?? raw?.name ?? "Unknown",
+      hero_name: stripHeroPrefix(raw?.hero_name),
+      display_name: raw?.display_name ?? raw?.hero_name ?? "Unknown",
       confidence: typeof raw?.confidence === "number"
         ? raw.confidence
         : typeof raw?.score === "number"

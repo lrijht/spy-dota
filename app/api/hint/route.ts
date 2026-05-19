@@ -16,17 +16,21 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify(body),
     });
-    const data = await res.json();
+    const rawBody = await res.text();
+    console.log("[hint proxy] rawBody from Railway:", rawBody);
 
-    // FastAPI shape: { results: [{ hero: { name, display_name }, score }] }
-    // Normalize to: { candidates: [{ hero: string, name: string, confidence: number }] }
-    const raw: unknown[] = Array.isArray(data.results) ? data.results : [];
+    const parsedJson = JSON.parse(rawBody);
+    console.log("[hint proxy] parsedJson:", JSON.stringify(parsedJson));
+
+    // Railway shape: { candidates: [{ hero_name, display_name, score }] }
+    const raw: unknown[] = Array.isArray(parsedJson.candidates) ? parsedJson.candidates : [];
     const candidates = raw.map((r: any) => ({
-      hero: stripHeroPrefix(r?.hero?.name),
-      name: r?.hero?.display_name ?? r?.hero?.name ?? "Unknown",
+      hero_name: stripHeroPrefix(r?.hero_name),
+      display_name: r?.display_name ?? r?.hero_name ?? "Unknown",
       confidence: typeof r?.score === "number" ? r.score : 0,
     }));
 
+    console.log("[hint proxy] candidates being returned:", JSON.stringify(candidates));
     return NextResponse.json({ candidates }, { status: res.status });
   } catch {
     return NextResponse.json({ error: "AI service unavailable" }, { status: 502 });
