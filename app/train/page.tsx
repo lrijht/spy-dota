@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 
 const CDN = "https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react";
 
@@ -175,7 +176,7 @@ export default function TrainPage() {
               <div style={{ display: "flex", gap: 28, alignItems: "flex-start", marginBottom: 28 }}>
                 <div style={{ position: "relative", flexShrink: 0 }}>
                   {!imgError && portraitUrl ? (
-                    <img
+                    <Image
                       src={portraitUrl}
                       alt={hero.display_name}
                       width={128}
@@ -203,7 +204,7 @@ export default function TrainPage() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                     {ATTR_ICON[attr] && (
-                      <img
+                      <Image
                         src={ATTR_ICON[attr]}
                         alt={ATTR_LABEL[attr] ?? attr}
                         width={20}
