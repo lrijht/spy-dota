@@ -196,7 +196,7 @@ export default function TrainPage() {
           ) : error && !hero ? (
             <div style={{ textAlign: "center", padding: "60px 0" }}>
               <div style={{ color: "#ff6b5e", marginBottom: 20, fontSize: 14 }}>{error}</div>
-              <button className="dota-btn" onClick={fetchNext}>ПОВТОРИТЬ</button>
+              <button className="dota-btn" onClick={() => fetchNext()}>ПОВТОРИТЬ</button>
             </div>
           ) : hero ? (
             <>
