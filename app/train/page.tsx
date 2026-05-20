@@ -70,6 +70,7 @@ export default function TrainPage() {
   const [imgError, setImgError] = useState(false);
 
   const fetchNext = useCallback(async (exclude?: string) => {
+    console.log("[train] FETCHING next hero, exclude:", exclude ?? "none");
     setLoading(true);
     setHero(null);
     setError("");
@@ -82,11 +83,15 @@ export default function TrainPage() {
       const res = await fetch(url);
       if (!res.ok) throw new Error("Не удалось загрузить героя");
       const data: HeroData = await res.json();
+      console.log("[train] GOT hero:", data.hero_name);
       // server returned the same hero despite exclude — retry once without it
       if (exclude && data.hero_name === exclude) {
+        console.log("[train] same hero returned, retrying without exclude");
         const res2 = await fetch("/api/train/next-hero");
         if (res2.ok) {
-          setHero(await res2.json());
+          const data2: HeroData = await res2.json();
+          console.log("[train] GOT hero (retry):", data2.hero_name);
+          setHero(data2);
           return;
         }
       }
@@ -328,7 +333,7 @@ export default function TrainPage() {
                 <button
                   className="dota-btn"
                   style={{ minWidth: 120 }}
-                  onClick={() => fetchNext()}
+                  onClick={() => { console.log("[train] SKIP clicked, current hero:", hero?.hero_name); fetchNext(); }}
                   disabled={submitting || loading}
                 >
                   ПРОПУСТИТЬ →
