@@ -66,6 +66,7 @@ export default function TrainPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [taughtToday, setTaughtToday] = useState(0);
+  const [successMsg, setSuccessMsg] = useState("");
   const [imgError, setImgError] = useState(false);
 
   const fetchNext = useCallback(async () => {
@@ -91,18 +92,27 @@ export default function TrainPage() {
     if (!hero || !text.trim()) return;
     setSubmitting(true);
     setError("");
+    setSuccessMsg("");
+
+    const keywords = text.split(/[,\n]+/).map(k => k.trim()).filter(k => k.length > 1);
+    const payload = { hero_name: hero.hero_name, keywords };
+    console.log("[train/submit] payload:", payload);
+
     try {
       const res = await fetch("/api/train/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hero_name: hero.hero_name, text: text.trim() }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error ?? "Ошибка отправки");
       }
-      setTaughtToday(n => n + 1);
-      fetchNext();
+      const data = await res.json().catch(() => ({}));
+      const added = typeof data.added === "number" ? data.added : keywords.length;
+      setTaughtToday(n => n + added);
+      setSuccessMsg(`✓ Отправлено! Добавлено ${added} ${added === 1 ? "слово" : added < 5 ? "слова" : "слов"}`);
+      setTimeout(() => { setSuccessMsg(""); fetchNext(); }, 1200);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -264,6 +274,17 @@ export default function TrainPage() {
                   // Любые ассоциации помогут ИИ лучше угадывать этого героя
                 </div>
               </div>
+
+              {successMsg && (
+                <div className="anim-in" style={{
+                  background: "rgba(30,163,163,0.15)", color: "#4be0d6",
+                  border: "1px solid rgba(75,224,214,0.4)", padding: "10px 14px",
+                  fontSize: 14, marginBottom: 16,
+                  fontFamily: "'Marcellus', serif",
+                }}>
+                  {successMsg}
+                </div>
+              )}
 
               {error && (
                 <div style={{
