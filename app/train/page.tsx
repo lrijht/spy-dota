@@ -110,9 +110,14 @@ export default function TrainPage() {
       }
       const data = await res.json().catch(() => ({}));
       const added = typeof data.added === "number" ? data.added : keywords.length;
+      const updatedCount = typeof data.updated_tags_count === "number" ? data.updated_tags_count : null;
+      if (updatedCount !== null) {
+        setHero(h => h ? { ...h, keyword_count: updatedCount } : h);
+      }
       setTaughtToday(n => n + added);
-      setSuccessMsg(`✓ Отправлено! Добавлено ${added} ${added === 1 ? "слово" : added < 5 ? "слова" : "слов"}`);
-      setTimeout(() => { setSuccessMsg(""); fetchNext(); }, 1200);
+      const countLabel = updatedCount !== null ? ` (всего: ${updatedCount})` : "";
+      setSuccessMsg(`✓ Отправлено! Добавлено ${added} ${added === 1 ? "слово" : added < 5 ? "слова" : "слов"}${countLabel}`);
+      setTimeout(() => { setSuccessMsg(""); fetchNext(); }, 2000);
     } catch (e: any) {
       setError(e.message);
     } finally {
