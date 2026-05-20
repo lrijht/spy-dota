@@ -333,8 +333,8 @@ export default function TrainPage() {
                 <button
                   className="dota-btn"
                   style={{ minWidth: 120 }}
-                  onClick={() => { console.log("[train] SKIP clicked, current hero:", hero?.hero_name); fetchNext(); }}
-                  disabled={submitting || loading}
+                  onClick={() => { console.log("[train] SKIP clicked, current hero:", hero?.hero_name); fetchNext(hero?.hero_name); }}
+                  disabled={submitting}
                 >
                   ПРОПУСТИТЬ →
                 </button>
