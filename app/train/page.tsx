@@ -69,15 +69,27 @@ export default function TrainPage() {
   const [successMsg, setSuccessMsg] = useState("");
   const [imgError, setImgError] = useState(false);
 
-  const fetchNext = useCallback(async () => {
+  const fetchNext = useCallback(async (exclude?: string) => {
     setLoading(true);
+    setHero(null);
     setError("");
     setText("");
     setImgError(false);
     try {
-      const res = await fetch("/api/train/next-hero");
+      const url = exclude
+        ? `/api/train/next-hero?exclude=${encodeURIComponent(exclude)}`
+        : "/api/train/next-hero";
+      const res = await fetch(url);
       if (!res.ok) throw new Error("Не удалось загрузить героя");
       const data: HeroData = await res.json();
+      // server returned the same hero despite exclude — retry once without it
+      if (exclude && data.hero_name === exclude) {
+        const res2 = await fetch("/api/train/next-hero");
+        if (res2.ok) {
+          setHero(await res2.json());
+          return;
+        }
+      }
       setHero(data);
     } catch (e: any) {
       setError(e.message ?? "Ошибка сети");
@@ -90,12 +102,13 @@ export default function TrainPage() {
 
   async function handleSubmit() {
     if (!hero || !text.trim()) return;
+    const submittedHeroName = hero.hero_name;
     setSubmitting(true);
     setError("");
     setSuccessMsg("");
 
     const keywords = text.split(/[,\n]+/).map(k => k.trim()).filter(k => k.length > 1);
-    const payload = { hero_name: hero.hero_name, keywords };
+    const payload = { hero_name: submittedHeroName, keywords };
     console.log("[train/submit] payload:", payload);
 
     try {
@@ -117,7 +130,7 @@ export default function TrainPage() {
       setTaughtToday(n => n + added);
       const countLabel = updatedCount !== null ? ` (всего: ${updatedCount})` : "";
       setSuccessMsg(`✓ Отправлено! Добавлено ${added} ${added === 1 ? "слово" : added < 5 ? "слова" : "слов"}${countLabel}`);
-      setTimeout(() => { setSuccessMsg(""); fetchNext(); }, 2000);
+      setTimeout(() => { setSuccessMsg(""); fetchNext(submittedHeroName); }, 1000);
     } catch (e: any) {
       setError(e.message);
     } finally {
