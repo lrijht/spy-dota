@@ -47,7 +47,11 @@ interface NarrowResult {
 
 const MAX_CLUES = 3;
 
-export default function SpyHintChat({ isSpy }: { isSpy: boolean }) {
+export default function SpyHintChat({ isSpy, onCluesChange, onNarrow }: {
+  isSpy: boolean;
+  onCluesChange?: (clues: string[]) => void;
+  onNarrow?: (hero_name: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [clues, setClues] = useState<string[]>([]);
@@ -82,6 +86,7 @@ export default function SpyHintChat({ isSpy }: { isSpy: boolean }) {
     setLoading(true);
     const newClues = [...clues, clue];
     setClues(newClues);
+    onCluesChange?.(newClues);
     setInput("");
 
     try {
@@ -101,7 +106,11 @@ export default function SpyHintChat({ isSpy }: { isSpy: boolean }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ clues: newClues }),
         });
-        if (narrowRes.ok) setNarrowResult(await narrowRes.json());
+        if (narrowRes.ok) {
+          const nr = await narrowRes.json();
+          setNarrowResult(nr);
+          if (nr?.hero_name) onNarrow?.(nr.hero_name);
+        }
       }
     } catch {
       setError("Сервис недоступен");

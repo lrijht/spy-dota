@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getPusherClient } from "@/lib/pusher";
 import { UNIQUE_HEROES, RANGED_HERO_NAMES } from "@/lib/heroes";
@@ -311,6 +311,9 @@ export default function GamePage() {
   const [recordText, setRecordText] = useState("");
   const [showHint, setShowHint] = useState(false);
   const pusherRef = useRef<ReturnType<typeof getPusherClient> | null>(null);
+  const spyCluesRef = useRef<string[]>([]);
+  const aiGuessRef = useRef<string | null>(null);
+  const feedbackSentRef = useRef(false);
 
   useEffect(() => {
     const id = localStorage.getItem(`player_${code}`);
@@ -387,6 +390,24 @@ export default function GamePage() {
     setAnswers(prev => ({ ...prev, [playerName]: [...(prev[playerName] || []), { playerName, answer: recordText.trim() }] }));
     setRecordText(""); setRecordingFor(null);
   }
+
+  const handleCluesChange = useCallback((clues: string[]) => { spyCluesRef.current = clues; }, []);
+  const handleNarrow = useCallback((hero_name: string) => { aiGuessRef.current = hero_name; }, []);
+
+  useEffect(() => {
+    if (!revealed || !assigned?.isSpy || feedbackSentRef.current) return;
+    if (spyCluesRef.current.length === 0) return;
+    const actualHero = revealed.players.find(p => !p.isSpy)?.heroName;
+    if (!actualHero) return;
+    feedbackSentRef.current = true;
+    const guessed_correctly = !!aiGuessRef.current &&
+      aiGuessRef.current.toLowerCase() === actualHero.toLowerCase();
+    fetch("/api/hint/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hero_name: actualHero, clues: spyCluesRef.current, guessed_correctly }),
+    }).catch(() => {});
+  }, [revealed, assigned]);
 
   const myPlayer = players.find(p => p.id === myId);
   const isMeAnswered = myPlayer?.hasAnswered || false;
@@ -819,7 +840,7 @@ export default function GamePage() {
 
         </div>
       </main>
-      <SpyHintChat isSpy={assigned?.isSpy === true} />
+      <SpyHintChat isSpy={assigned?.isSpy === true} onCluesChange={handleCluesChange} onNarrow={handleNarrow} />
     </>
   );
 }
