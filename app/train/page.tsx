@@ -328,7 +328,7 @@ export default function TrainPage() {
                 <button
                   className="dota-btn"
                   style={{ minWidth: 120 }}
-                  onClick={fetchNext}
+                  onClick={() => fetchNext()}
                   disabled={submitting || loading}
                 >
                   ПРОПУСТИТЬ →
